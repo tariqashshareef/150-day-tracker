@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4ede0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="150 days">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="color-scheme" content="light dark">
+<title>150 days 百五十日</title>
+<script>
+  // theme and display mode before first paint: what was chosen last, else the phone's own setting
+  (function () {
+    var r = document.documentElement, t = null;
+    try { t = localStorage.getItem("d150.theme"); } catch (e) {}
+    if (!t && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) t = "dark";
+    if (t === "dark") r.dataset.theme = "dark";
+    if (navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches)) r.classList.add("standalone");
+  })();
+</script>
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="has-day">
+
+<!-- ink filters: rough edges, a little bleed (nijimi), dry-brush gaps (kasure) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="sumi" x="-6%" y="-8%" width="112%" height="116%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="5" result="warp"/>
+      <feDisplacementMap in="SourceGraphic" in2="warp" scale="3.6" xChannelSelector="R" yChannelSelector="G" result="rough"/>
+      <feGaussianBlur in="rough" stdDeviation="2.2" result="halo0"/>
+      <feComponentTransfer in="halo0" result="halo"><feFuncA type="linear" slope="0.26"/></feComponentTransfer>
+      <feTurbulence type="fractalNoise" baseFrequency="0.55 0.08" numOctaves="2" seed="11" result="grain"/>
+      <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -6 5.4" result="dry"/>
+      <feComposite in="rough" in2="dry" operator="in" result="body"/>
+      <feMerge><feMergeNode in="halo"/><feMergeNode in="body"/></feMerge>
+    </filter>
+    <filter id="sumi-big" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="3" result="warp"/>
+      <feDisplacementMap in="SourceGraphic" in2="warp" scale="9" xChannelSelector="R" yChannelSelector="G" result="rough"/>
+      <feGaussianBlur in="rough" stdDeviation="3" result="halo0"/>
+      <feComponentTransfer in="halo0" result="halo"><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+      <feTurbulence type="fractalNoise" baseFrequency="0.7 0.06" numOctaves="2" seed="21" result="grain"/>
+      <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -5 4.6" result="dry"/>
+      <feComposite in="rough" in2="dry" operator="in" result="body"/>
+      <feMerge><feMergeNode in="halo"/><feMergeNode in="body"/></feMerge>
+    </filter>
+    <filter id="sumi-bar" x="-1%" y="-60%" width="102%" height="220%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.025 0.18" numOctaves="2" seed="8" result="warp"/>
+      <feDisplacementMap in="SourceGraphic" in2="warp" scale="2.4" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- a worn hanko: wobbly edge, and the odd spot where the ink didn't take -->
+    <filter id="seal" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="2" result="warp"/>
+      <feDisplacementMap in="SourceGraphic" in2="warp" scale="2.2" xChannelSelector="R" yChannelSelector="G" result="rough"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="2" seed="7" result="speck"/>
+      <feColorMatrix in="speck" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -10 7.4" result="ink"/>
+      <feComposite in="rough" in2="ink" operator="in"/>
+    </filter>
+  </defs>
+</svg>
+
+<div class="night-air" aria-hidden="true"></div>
+<div class="status-wash" aria-hidden="true"></div>
+
+<div class="spread">
+
+  <!-- left page: the whole stretch of days -->
+  <section class="page left" id="overview" aria-label="the 150 days">
+    <span class="tategaki" aria-hidden="true">百五十日</span>
+    <div class="scroll" id="leftScroll">
+
+      <header class="top">
+        <div class="brand"><span class="seal">百</span><b>150 days</b></div>
+        <div class="top-right">
+          <button class="textbtn" id="backupBtn" title="keep a copy of your log">backup</button>
+          <button class="mode" aria-label="toggle night mode" title="night mode">
+            <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 3.4a8.8 8.8 0 1 0 5.4 14.9 7.2 7.2 0 0 1-5.4-14.9z"/></svg>
+            <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.4M12 19v2.4M2.6 12H5M19 12h2.4M5.4 5.4l1.7 1.7M16.9 16.9l1.7 1.7M5.4 18.6l1.7-1.7M16.9 7.1l1.7-1.7"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- the enso closes as days are completed; the thin line is time passing -->
+      <div class="score">
+        <div class="enso" id="enso" data-empty>
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="enso-guide" cx="100" cy="100" r="76"/>
+            <path class="enso-time" id="ensoTime" d="M100 24A76 76 0 1 1 99.9 24"/>
+            <g filter="url(#sumi-big)"><path class="enso-arc" id="ensoArc" d="M100 24A76 76 0 1 1 99.9 24"/></g>
+          </svg>
+          <div class="enso-num"><b id="ensoNum">0</b><i>/150</i></div>
+        </div>
+        <div class="score-text">
+          <span class="label" id="verdictLabel">today</span>
+          <b id="verdict">day 1</b>
+          <span class="sub" id="subline"></span>
+          <nav class="stats" id="stats" aria-label="focus one thing">
+            <button class="stat" data-focus="data"><span class="n">0</span><span class="l">data</span></button>
+            <button class="stat" data-focus="gym"><span class="n">0</span><span class="l">gym</span></button>
+            <button class="stat" data-focus="jp"><span class="n">0</span><span class="l">japanese</span></button>
+            <button class="stat" data-focus="piano"><span class="n">0</span><span class="l">piano</span></button>
+            <button class="stat" data-focus="sleep"><span class="n">0</span><span class="l">sleep</span></button>
+          </nav>
+        </div>
+      </div>
+
+      <div class="ink-bar" id="coverage" aria-hidden="true">
+        <i data-tone="high"></i><i data-tone="mid"></i><i data-tone="low"></i><i data-tone="unknown"></i>
+      </div>
+
+      <div class="facts-wrap">
+        <span class="label" id="factsLabel">overall</span>
+        <dl class="facts" id="facts"></dl>
+      </div>
+
+      <div class="months-head">
+        <span class="label">the days</span>
+        <p class="legend">
+          <span><i style="--c: var(--high)"></i>all good</span>
+          <span><i style="--c: var(--mid)"></i>some</span>
+          <span><i style="--c: var(--low)"></i>missed</span>
+        </p>
+        <p class="legend-note">five strokes a day: data, gym, japanese, piano, sleep.</p>
+      </div>
+      <div class="months" id="months"></div>
+
+      <p class="credit">type: shippori mincho (ofl). stroke order: kanjivg (cc by-sa 3.0).</p>
+    </div>
+  </section>
+
+  <!-- right page: one day -->
+  <aside class="page right" id="day" aria-label="one day">
+    <div class="stitch" aria-hidden="true"></div>
+
+    <div class="day-top">
+      <button class="textbtn back" id="toDays" aria-label="back to all days">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>days
+      </button>
+      <div class="day-top-right">
+        <div class="status" id="saveStatus" data-level="ok"><i class="dot"></i><span>ready</span></div>
+        <button class="icon-btn" id="prevDay" aria-label="previous day" title="previous day">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <button class="icon-btn" id="nextDay" aria-label="next day" title="next day">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+        <button class="mode" aria-label="toggle night mode" title="night mode">
+          <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 3.4a8.8 8.8 0 1 0 5.4 14.9 7.2 7.2 0 0 1-5.4-14.9z"/></svg>
+          <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.4M12 19v2.4M2.6 12H5M19 12h2.4M5.4 5.4l1.7 1.7M16.9 16.9l1.7 1.7M5.4 18.6l1.7-1.7M16.9 7.1l1.7-1.7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="scroll" id="dayScroll">
+      <div class="hero-wrap" id="heroWrap">
+        <div class="furi" id="furi"></div>
+        <div class="hero" id="hero"></div>
+        <div class="hero-foot">
+          <span id="dateLine"></span>
+          <button class="textbtn small" id="replay" title="draw it again">replay</button>
+        </div>
+        <div class="stamp" id="stamp" title="every part of this day is logged"><span>済</span></div>
+      </div>
+
+      <div class="panel-body" id="form"></div>
+      <p class="day-note" id="dayNote"></p>
+    </div>
+  </aside>
+
+</div>
+
+<!-- backup: the log lives on this phone only -->
+<div class="sheet" id="backupSheet" hidden>
+  <div class="sheet-card" role="dialog" aria-label="backup">
+    <button class="sheet-x" id="backupClose" aria-label="close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2>backup</h2>
+    <p class="deck-info" id="backupInfo"></p>
+    <p>your log is kept on this phone only. now and then, export a copy and save it to files or send it to yourself. if the phone is wiped, import it back.</p>
+    <div class="sheet-actions">
+      <button class="textbtn" id="exportBtn">export</button>
+      <label class="textbtn filebtn">import<input type="file" id="importFile" accept=".json,application/json"></label>
+    </div>
+    <p class="progress-text" id="backupMsg"></p>
+    <p class="sheet-warn">importing replaces any day that is in the file. other days stay as they are.</p>
+  </div>
+</div>
+
+<script src="strokes.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

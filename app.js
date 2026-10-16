@@ -220,6 +220,12 @@ function hiss(d, f0, f1, { gain = 0.05, at = 0 } = {}) {
   src.connect(f).connect(g).connect(c.destination);
   src.start(t); src.stop(t + d + 0.03);
 }
+// one bell voice: the note, a fifth above it at half strength and its octave at a third, ringing together
+const bell = (f, d, gain, at = 0) => {
+  blip(f, f, d, { gain, at });
+  blip(f * 1.5, f * 1.5, d * 0.8, { gain: gain * 0.55, at });
+  blip(f * 2, f * 2, d * 0.55, { gain: gain * 0.35, at });
+};
 const sfx = {
   yes()    { blip(660, 400, 0.11, { type: "triangle", gain: 0.14 }); blip(1320, 900, 0.05, { gain: 0.03 }); },   // a bright wooden tok
   no()     { blip(360, 220, 0.13, { type: "triangle", gain: 0.13 }); },                                          // the same tok, lower
@@ -230,9 +236,9 @@ const sfx = {
   tick()   { blip(1100, 900, 0.04, { type: "triangle", gain: 0.06 }); },
   swish()  { hiss(0.22, 600, 2800, { gain: 0.05 }); },                                                           // a page turning
   part()   { blip(784, 784, 0.4, { gain: 0.08 }); blip(1175, 1175, 0.55, { gain: 0.07, at: 0.09 }); },          // a part of the day is done
-  wrap()   { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => blip(f, f, 0.34, { type: "triangle", gain: 0.085, at: i * 0.09 }));   // C E G C, rising
+  wrap()   { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, 0.55, 0.07, i * 0.09));                                  // C E G C, rising, each note struck like the closing bell
              blip(150, 48, 0.26, { gain: 0.3, at: 0.3 }); hiss(0.08, 300, 90, { gain: 0.1, at: 0.3 });                                        // the hanko lands on the last note
-             blip(1046.5, 1046.5, 1.1, { gain: 0.07, at: 0.3 }); blip(1568, 1568, 0.85, { gain: 0.045, at: 0.3 }); blip(2093, 2093, 0.6, { gain: 0.025, at: 0.3 }); },
+             bell(1046.5, 1.1, 0.07, 0.3); },
   streak() { [1319, 1568, 1976, 2637].forEach((f, i) => blip(f, f, 0.45, { gain: 0.045, at: i * 0.07 })); },     // a run of sparkles
 };
 const play = (name) => { if (feel.on) { try { sfx[name](); } catch (e) { /* no audio here */ } } };
@@ -822,6 +828,7 @@ $("#nextDay").addEventListener("click", () => stepDay(1));
 function openDayPage() {
   if (wide() || document.body.classList.contains("has-day")) return;
   document.body.classList.add("has-day");
+  cue("swish");
 }
 function closeDayPage() {
   if (wide() || !document.body.classList.contains("has-day")) return;
@@ -903,7 +910,12 @@ function backupInfo() {
   $("#backupInfo").textContent = `${n} ${n === 1 ? "day" : "days"} logged · last export ${db.exported ? shortDate(ymd(new Date(db.exported))) : "never"}`;
 }
 function openBackup() { cue("swish"); backupInfo(); $("#backupMsg").textContent = ""; $("#backupSheet").hidden = false; }
-function closeBackup() { $("#backupSheet").hidden = true; }
+function closeBackup() {
+  const sheet = $("#backupSheet");
+  if (sheet.hidden) return;
+  sheet.hidden = true;
+  cue("swish");
+}
 $("#backupBtn").addEventListener("click", openBackup);
 $("#backupClose").addEventListener("click", closeBackup);
 $("#backupSheet").addEventListener("click", (e) => { if (e.target.id === "backupSheet") closeBackup(); });

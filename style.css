@@ -84,7 +84,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--sumi) 38%, transparent); background-clip: content-box; }
 
 /* ---------- the spread ---------- */
-.spread { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) 520px; height: 100vh; height: 100dvh; }
+.spread { position: fixed; inset: 0; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) 520px; }
 .page { position: relative; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .left .scroll { padding: 24px 46px calc(48px + var(--sab)) 66px; }
@@ -404,7 +404,8 @@ html[data-theme="dark"] .standalone .status-wash, html[data-theme="dark"].standa
 
 /* ---------- launch and theme switching ---------- */
 /* the page stays hidden until the type has loaded, then settles in; nothing flashes white while it wakes up */
-html { background-color: var(--washi); touch-action: manipulation; }
+html { background-color: var(--washi); touch-action: manipulation; min-height: 100%; min-height: -webkit-fill-available; }
+body::before, body::after, .night-air { inset: calc(-1 * var(--sat)) 0 calc(-1 * var(--sab)) 0; }
 * { touch-action: manipulation; }   /* pinch still zooms; double-tap doesn't */
 body { opacity: 0; transition: opacity .7s var(--ink-ease); }
 html.show body { opacity: 1; }
@@ -427,15 +428,21 @@ html.switching *, html.switching *::before, html.switching *::after { transition
 /* ---------- text boxes: make sure iOS treats them as plain editable text ---------- */
 input, textarea { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; touch-action: manipulation; }
 
-/* ---------- underlines: a brush-shaped bar that blooms from its middle with a little spring ---------- */
-:root { --brush: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10' preserveAspectRatio='none'%3E%3Cpath d='M0 6.2C2 4.4 6 3.2 13 3.5S27 2.6 40 3S62 2.2 76 3S93 3.2 100 5.3C99 6.6 96 7.4 90 7.5S72 8.2 58 7.9S36 8.5 24 8S6 8.2 0 6.2Z'/%3E%3C/svg%3E"); }
-.chip::after, .stat::after { border-radius: 0; filter: none; background: var(--c, var(--sumi));
+/* ---------- underlines: a calligraphy stroke. a heavy pressed start, a pulled body, dry bristle gaps and a flick as the brush lifts ---------- */
+:root { --brush: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 12' preserveAspectRatio='none'%3E%3Cpath fill-rule='evenodd' d='M0.8 7.2 C-0.6 3.4 3.4 1.2 8 1.8 C18 2.6 30 3.3 46 3 S76 2.2 90 3.4 C95 3.9 98.5 3.2 100 1 C99.4 4.2 97.6 6 92 6.4 S62 7.4 44 7.8 S14 10.6 6 10.8 C2.4 10.6 0.8 9.4 0.8 7.2 Z M58 4.4 L97 3.9 L97 4.5 L58 4.9 Z M66 5.8 L93 5.5 L93 5.9 L66 6.1 Z M34 5.2 L52 5.1 L52 5.4 L34 5.6 Z'/%3E%3C/svg%3E"); }
+.chip::after, .stat::after { content: ""; position: absolute; border-radius: 0; filter: none; transform: none; background: var(--c, var(--sumi));
   -webkit-mask: var(--brush) 0 0 / 100% 100% no-repeat; mask: var(--brush) 0 0 / 100% 100% no-repeat;
-  opacity: 0; transform: scale(.15, .5); transform-origin: 50% 60%; transition: transform .2s ease-in, opacity .16s ease-in; }
-.chip::after { left: 6px; right: 6px; bottom: 5px; height: 9px; }
-.stat::after { left: -2px; right: -2px; bottom: 1px; height: 9px; background: var(--sumi); }
-.chip[aria-pressed="true"]::after, .stat.on::after { filter: none; opacity: 1; transform: none;
-  transition: transform .6s cubic-bezier(.25, 1.9, .4, 1), opacity .1s ease-out; }
+  opacity: 0; transition: opacity .3s ease-out; }
+.chip::after { left: 4px; right: 4px; bottom: 1px; height: 12px; }
+.stat::after { left: -3px; right: -3px; bottom: -2px; height: 12px; background: var(--sumi); }
+/* the brush is laid down along the stroke with a slanted leading edge: slow as it loads, quick through the pull, easing as it lifts */
+.chip[aria-pressed="true"]::after, .stat.on::after { opacity: 1; filter: none; transform: none;
+  animation: brush-on .62s cubic-bezier(.5, .05, .25, 1) both; }
+@keyframes brush-on {
+  0%   { clip-path: polygon(0 -30%, 0% -30%, -14% 130%, 0 130%); }
+  62%  { clip-path: polygon(0 -30%, 80% -30%, 68% 130%, 0 130%); }
+  100% { clip-path: polygon(0 -30%, 120% -30%, 106% 130%, 0 130%); }
+}
 .chip { transition: color .4s var(--ink-ease), transform .18s ease-out; }
 .chip:active, .cell:active, .step:active { transform: scale(.93); }
 .stat:active { transform: scale(.95); }

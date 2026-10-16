@@ -1,21 +1,6 @@
 @font-face { font-family: "Shippori Mincho"; font-weight: 400 500; font-display: swap; src: url("fonts/ShipporiMincho-Medium.woff2") format("woff2"); }
 @font-face { font-family: "Shippori Mincho"; font-weight: 600; font-display: swap; src: url("fonts/ShipporiMincho-SemiBold.woff2") format("woff2"); }
 
-/* registered, so day and night can dissolve into each other like ink spreading */
-@property --washi   { syntax: "<color>"; inherits: true; initial-value: #f4ede0; }
-@property --washi-2 { syntax: "<color>"; inherits: true; initial-value: #ece3d1; }
-@property --sumi    { syntax: "<color>"; inherits: true; initial-value: #2b2926; }
-@property --sumi-2  { syntax: "<color>"; inherits: true; initial-value: #4d4840; }
-@property --sumi-3  { syntax: "<color>"; inherits: true; initial-value: #716b5e; }
-@property --hair    { syntax: "<color>"; inherits: true; initial-value: #d9d2c4; }
-@property --stitch  { syntax: "<color>"; inherits: true; initial-value: #a9a396; }
-@property --shu     { syntax: "<color>"; inherits: true; initial-value: #a11d22; }
-@property --high    { syntax: "<color>"; inherits: true; initial-value: #3f6a39; }
-@property --mid     { syntax: "<color>"; inherits: true; initial-value: #94610a; }
-@property --low     { syntax: "<color>"; inherits: true; initial-value: #8f2535; }
-@property --new     { syntax: "<color>"; inherits: true; initial-value: #2b2926; }
-@property --unknown { syntax: "<color>"; inherits: true; initial-value: #766f61; }
-
 :root {
   /* day: washi, sumi, a deep blood-red seal */
   --washi: #f4ede0;
@@ -41,10 +26,6 @@
   --mincho: "Shippori Mincho", "Yu Mincho", "MS Mincho", serif;
   --ink-ease: cubic-bezier(.22, .61, .2, 1);   /* ink spreading: quick to touch, slow to settle */
   color-scheme: light;
-  transition: --washi 1.3s var(--ink-ease), --washi-2 1.3s var(--ink-ease), --sumi 1.3s var(--ink-ease),
-    --sumi-2 1.3s var(--ink-ease), --sumi-3 1.3s var(--ink-ease), --hair 1.3s var(--ink-ease),
-    --stitch 1.3s var(--ink-ease), --shu 1.3s var(--ink-ease), --high 1.3s var(--ink-ease),
-    --mid 1.3s var(--ink-ease), --low 1.3s var(--ink-ease), --new 1.3s var(--ink-ease), --unknown 1.3s var(--ink-ease);
 }
 
 /* night: deep indigo paper, moon-white ink, a little cold air */
@@ -73,8 +54,7 @@ body {
   font: 500 15px/1.6 var(--mincho); -webkit-font-smoothing: antialiased;
 }
 /* paper: fibers and grain, one set for day and one for night, cross-fading */
-body::before, body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  transition: opacity 1.3s var(--ink-ease); }
+body::before, body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;  }
 body::before {
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='460' height='460'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.30' numOctaves='2' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .37 0 0 0 0 .27 0 0 0 4 -2.7'/%3E%3C/filter%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.28 0.010' numOctaves='2' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .37 0 0 0 0 .27 0 0 0 4 -2.75'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='.14'/%3E%3Crect width='100%25' height='100%25' filter='url(%23b)' opacity='.11'/%3E%3C/svg%3E"),
@@ -91,7 +71,7 @@ body::after {
 html[data-theme="dark"] body::before { opacity: 0; }
 html[data-theme="dark"] body::after { opacity: 1; }
 /* cold air: moonlight from the top corner, mist settling at the bottom */
-.night-air { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.6s var(--ink-ease);
+.night-air { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0;
   background:
     radial-gradient(60% 42% at 84% -8%, rgba(214, 222, 236, .085), transparent 72%),
     linear-gradient(to top, rgba(200, 205, 215, .045), transparent 34%); }
@@ -185,8 +165,10 @@ html[data-theme="dark"] .mode .sun { opacity: 1; transform: none; }
 .ink-bar [data-tone="unknown"] { --c: var(--unknown); opacity: .55; }
 
 /* ---------- facts ---------- */
-.facts-wrap { margin-top: 26px; }
+
+.tally-wrap { margin-top: 20px; }
 .facts { margin: 6px 0 0; padding: 0; }
+.facts[hidden], .tally[hidden] { display: none; }
 .facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; padding: 10px 4px; border-bottom: 1px solid var(--hair); }
 .facts[data-anim] > div { animation: soak .7s var(--ink-ease) both; }
 .facts dt { color: var(--sumi-2); font-size: 14px; }
@@ -195,12 +177,7 @@ html[data-theme="dark"] .mode .sun { opacity: 1; transform: none; }
 @keyframes soak { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 
 /* ---------- the months ---------- */
-.months-head { margin-top: 38px; }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 0 0; color: var(--sumi-2); font-size: 13px; }
-.legend span { display: inline-flex; align-items: center; gap: 7px; }
-.legend i { width: 3px; height: 13px; border-radius: 2px; background: var(--c); }
-.legend-note { margin: 2px 0 0; color: var(--sumi-3); font-size: 12.5px; }
-.month { margin-top: 30px; }
+.month { margin-top: 24px; }
 .month h3 { display: flex; align-items: baseline; gap: 14px; margin: 0 0 4px; font-weight: 600; }
 .mj { font-size: 25px; letter-spacing: .08em; }
 .me { font-size: 13px; color: var(--sumi-3); letter-spacing: .3em; font-weight: 500; }
@@ -278,7 +255,7 @@ body.stamping .stamp { animation: stamp-down .7s var(--ink-ease) both; }
 /* ---------- the form: five parts of the day ---------- */
 .panel-body { position: relative; padding: 4px var(--gr) 0 var(--gl); }
 /* the divider under the strokes is stitched, like the binding beside it */
-.panel-body::before { content: ""; position: absolute; top: 0; left: calc(var(--gl) - 20px); right: calc(var(--gr) - 16px); height: 1px; pointer-events: none;
+.panel-body::before { content: ""; position: absolute; top: 0; left: 26px; right: 17px; height: 1px; pointer-events: none;
   background: repeating-linear-gradient(to right, var(--stitch) 0 9px, transparent 9px 18px); }
 .sec { padding: 30px 0 8px; }
 .sec + .sec { border-top: 1px solid var(--hair); }
@@ -406,3 +383,20 @@ body.stamping .stamp { animation: stamp-down .7s var(--ink-ease) both; }
 .standalone.under-bar .status-wash { display: block; position: fixed; z-index: 35; top: 0; left: 0; right: 0; height: calc(var(--sat) + 12px);
   pointer-events: none; background: linear-gradient(to bottom, rgba(34, 32, 29, .96), rgba(34, 32, 29, .8) calc(var(--sat) - 6px), transparent); }
 html[data-theme="dark"] .standalone .status-wash, html[data-theme="dark"].standalone .status-wash { display: none; }
+
+/* ---------- tally: perfect / partial / none, and the streak ---------- */
+.tally { display: grid; grid-template-columns: repeat(4, auto); justify-content: start; gap: 0 28px; margin-top: 8px; }
+.tally .t b { display: block; font: 600 26px/1 var(--mincho); font-variant-numeric: tabular-nums; }
+.tally .t span { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: var(--sumi-2); font-size: 13px; }
+.tally .t i { width: 3px; height: 13px; border-radius: 2px; background: var(--c); }
+
+/* ---------- launch and theme switching ---------- */
+/* the page stays hidden until the type has loaded, then settles in; nothing flashes white while it wakes up */
+html { background-color: var(--washi); touch-action: manipulation; }
+* { touch-action: manipulation; }   /* pinch still zooms; double-tap doesn't */
+body { opacity: 0; transition: opacity .7s var(--ink-ease); }
+html.show body { opacity: 1; }
+html:not(.show) .ink path, html:not(.show) .ink text, html:not(.show) .stamp { animation-play-state: paused; }
+/* day and night swap in one frame under a veil that fades, instead of animating every colour on the page */
+.veil { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+html.switching *, html.switching *::before, html.switching *::after { transition: none !important; }

@@ -16,10 +16,19 @@
     var r = document.documentElement, t = null;
     try { t = localStorage.getItem("d150.theme"); } catch (e) {}
     if (!t && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) t = "dark";
-    if (t === "dark") r.dataset.theme = "dark";
+    if (t === "dark") { r.dataset.theme = "dark"; document.querySelector('meta[name="theme-color"]').setAttribute("content", "#121214"); }
     if (navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches)) r.classList.add("standalone");
+    setTimeout(function () { r.classList.add("show"); }, 3500); // never stay hidden if something goes wrong
   })();
 </script>
+<style>
+  /* painted before the stylesheet arrives, so launch never flashes white */
+  html { background: #f4ede0; }
+  html[data-theme="dark"] { background: #121214; }
+  body { opacity: 0; margin: 0; }
+</style>
+<link rel="preload" href="fonts/ShipporiMincho-Medium.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/ShipporiMincho-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -114,20 +123,17 @@
         <i data-tone="high"></i><i data-tone="mid"></i><i data-tone="low"></i><i data-tone="unknown"></i>
       </div>
 
-      <div class="facts-wrap">
-        <span class="label" id="factsLabel">overall</span>
-        <dl class="facts" id="facts"></dl>
+      <div class="tally-wrap">
+        <span class="label" id="factsLabel">tally</span>
+        <div class="tally" id="tally">
+          <div class="t" style="--c: var(--high)"><b id="tPerfect">0</b><span><i></i>perfect</span></div>
+          <div class="t" style="--c: var(--mid)"><b id="tPartial">0</b><span><i></i>partial</span></div>
+          <div class="t" style="--c: var(--low)"><b id="tNone">0</b><span><i></i>none</span></div>
+          <div class="t" style="--c: var(--sumi)"><b id="tStreak">0</b><span><i></i>streak</span></div>
+        </div>
+        <dl class="facts" id="facts" hidden></dl>
       </div>
 
-      <div class="months-head">
-        <span class="label">the days</span>
-        <p class="legend">
-          <span><i style="--c: var(--high)"></i>all good</span>
-          <span><i style="--c: var(--mid)"></i>some</span>
-          <span><i style="--c: var(--low)"></i>missed</span>
-        </p>
-        <p class="legend-note">five strokes a day: data, gym, japanese, piano, sleep.</p>
-      </div>
       <div class="months" id="months"></div>
 
       <p class="credit">type: shippori mincho (ofl). stroke order: kanjivg (cc by-sa 3.0).</p>

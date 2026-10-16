@@ -59,8 +59,8 @@ const DOMAINS = [
     score: (e) => (e.hours > 0 ? 1 : 0) },
   { id: "gym",   name: "gym",      ch: "鍛", yomi: "たん",   keys: ["gym", "diet", "supps"],
     score: (e) => ((e.diet ? 1 : 0) + (e.supps ? 1 : 0)) / 2 },
-  { id: "jp",    name: "japanese", ch: "語", yomi: "ご",     keys: ["anki", "lesson", "input", "output"],
-    score: (e) => ((e.anki > 0 ? 1 : 0) + (e.lesson ? 1 : 0) + (e.input ? 1 : 0) + (e.output ? 1 : 0)) / 4 },
+  { id: "jp",    name: "japanese", ch: "語", yomi: "ご",     keys: ["anki", "lesson", "io"],
+    score: (e) => ((e.anki > 0 ? 1 : 0) + (e.lesson ? 1 : 0) + (e.io ? 1 : 0)) / 3 },
   { id: "piano", name: "piano",    ch: "音", yomi: "おと",   keys: ["piano"],
     score: (e) => (e.piano ? 1 : 0) },
   { id: "sleep", name: "sleep",    ch: "眠", yomi: "ねむり", keys: ["sleep"],
@@ -69,26 +69,25 @@ const DOMAINS = [
 
 const FORM = [
   { d: "data", fields: [
-    { k: "hours", t: "num", label: "hours spent", unit: "h", step: 0.5, max: 24, dec: true },
-    { k: "topics", t: "text", label: "topics worked", ph: "what did you work on?" },
+    { k: "hours", t: "num", label: "hours spent?", unit: "h", step: 0.5, max: 24, dec: true },
+    { k: "topics", t: "text", label: "worked on?", ph: "topics, tools, projects" },
   ] },
   { d: "gym", fields: [
-    { k: "gym", t: "pick", label: "session today", opts: [["push", "push"], ["pull", "pull"], ["legs", "legs+abs"], ["rest", "rest"]] },
-    { k: "diet", t: "yn", label: "adhered to diet" },
-    { k: "supps", t: "yn", label: "adhered to supplements" },
+    { k: "gym", t: "pick", label: "session today?", opts: [["push", "push"], ["pull", "pull"], ["legs", "legs+abs"], ["rest", "rest"]] },
+    { k: "diet", t: "yn", label: "adhered to diet?" },
+    { k: "supps", t: "yn", label: "adhered to supplements?" },
   ] },
   { d: "jp", fields: [
-    { k: "anki", t: "num", label: "anki, words studied", unit: "", step: 5, max: 9999, dec: false },
-    { k: "lesson", t: "yn", label: "lesson today" },
-    { k: "input", t: "yn", label: "input today" },
-    { k: "output", t: "yn", label: "output today" },
+    { k: "anki", t: "num", label: "anki vocab studied?", unit: "", step: 10, max: 9999, dec: false },
+    { k: "lesson", t: "yn", label: "lesson today?" },
+    { k: "io", t: "yn", label: "input/output today?" },
   ] },
   { d: "piano", fields: [
-    { k: "piano", t: "yn", label: "session today" },
-    { k: "pianoNote", t: "text", label: "worked on", ph: "pieces, passages, technique" },
+    { k: "piano", t: "yn", label: "session today?" },
+    { k: "pianoNote", t: "text", label: "worked on?", ph: "what did you work on?" },
   ] },
   { d: "sleep", fields: [
-    { k: "sleep", t: "yn", label: "ready to sleep by 2am" },
+    { k: "sleep", t: "yn", label: "ready to sleep by 2am?" },
   ] },
 ];
 const FIELD = Object.fromEntries(FORM.flatMap((s) => s.fields).map((f) => [f.k, f]));
@@ -111,10 +110,19 @@ function statusOf(date) {
 
 /* ----------------------------------------------------------------- storage: this phone only */
 
+/* input and output used to be two questions; they are one now */
+function migrate(o) {
+  for (const e of Object.values(o.entries)) {
+    if (!e || typeof e !== "object" || !("input" in e || "output" in e)) continue;
+    if (!("io" in e) && (typeof e.input === "boolean" || typeof e.output === "boolean")) e.io = !!(e.input || e.output);
+    delete e.input; delete e.output;
+  }
+  return o;
+}
 function loadDb() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) { const o = JSON.parse(raw); if (o && typeof o.entries === "object" && o.entries) return o; }
+    if (raw) { const o = JSON.parse(raw); if (o && typeof o.entries === "object" && o.entries) return migrate(o); }
   } catch (e) { /* unreadable: start clean */ }
   return { v: 1, entries: {}, exported: null };
 }
@@ -152,7 +160,9 @@ const fieldEls = new Map();  // key -> field element in the form
 let secEls = [];
 
 const wide = () => matchMedia("(min-width: 1121px)").matches;
-const editable = (date) => date <= today;
+// TEST ONLY: lets every day be logged, future ones included. remove when asked (set to false, or delete the flag).
+const TEST_ANY_DAY = true;
+const editable = (date) => TEST_ANY_DAY || date <= today;
 
 /* ----------------------------------------------------------------- theme */
 
@@ -164,7 +174,24 @@ function setTheme(theme, remember = true) {
   if (bar) bar.setAttribute("content", isDark() ? "#121214" : "#f4ede0");
   $$(".mode").forEach((b) => { b.title = isDark() ? "back to daylight" : "night mode"; });
 }
-$$(".mode").forEach((b) => b.addEventListener("click", () => setTheme(isDark() ? "light" : "dark")));
+/* day and night swap in a single frame under a veil of the old paper that fades away: smooth, and nothing repaints while it fades */
+function switchTheme(next) {
+  const root = document.documentElement;
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.style.background = getComputedStyle(root).backgroundColor;
+  document.body.append(veil);
+  root.classList.add("switching");
+  setTheme(next);
+  void veil.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    root.classList.remove("switching");
+    veil.style.transition = "opacity .6s cubic-bezier(.22, .61, .2, 1)";
+    veil.style.opacity = "0";
+    setTimeout(() => veil.remove(), 750);
+  }));
+}
+$$(".mode").forEach((b) => b.addEventListener("click", () => switchTheme(isDark() ? "light" : "dark")));
 
 /* ----------------------------------------------------------------- the months */
 
@@ -228,31 +255,33 @@ const mostUsed = (map, n) => [...map].sort((a, b) => b[1] - a[1]).slice(0, n).ma
 function aggregate() {
   const tn = dayNo(today), last = clamp(tn, 0, TOTAL);
   const a = {
-    tn, last, complete: 0, part: 0, missed: 0, upcoming: 0,
+    tn, last, complete: 0, perfect: 0, part: 0, none: 0, upcoming: 0,
     hours: 0, hoursDays: 0, bestHours: 0,
     gym: { push: 0, pull: 0, legs: 0, rest: 0 }, diet: [0, 0], supps: [0, 0],
-    anki: 0, ankiDays: 0, bestAnki: 0, lesson: [0, 0], input: [0, 0], output: [0, 0],
+    anki: 0, ankiDays: 0, bestAnki: 0, lesson: [0, 0], io: [0, 0],
     piano: [0, 0], sleep: [0, 0], topics: new Map(), pieces: new Map(), streak: 0, best: 0,
   };
   const flags = [];
   for (let n = 1; n <= TOTAL; n++) {
     if (n > last) { a.upcoming++; continue; }
     const date = dateOf(n), e = db.entries[date] || {}, st = statusOf(date);
-    flags.push(st.complete);
+    const perfect = st.per.every((p) => p.tone === "high");
+    flags.push(perfect);
     if (st.complete) a.complete++;
+    if (perfect) a.perfect++;
     else if (st.touched) a.part++;
-    else if (n < tn) a.missed++;
+    else if (n < tn) a.none++;
     else a.upcoming++;
     if (has(e, "hours")) { a.hours += e.hours; if (e.hours > 0) a.hoursDays++; a.bestHours = Math.max(a.bestHours, e.hours); }
     if (e.gym) a.gym[e.gym]++;
     tally(a.diet, e.diet); tally(a.supps, e.supps);
     if (has(e, "anki")) { a.anki += e.anki; if (e.anki > 0) a.ankiDays++; a.bestAnki = Math.max(a.bestAnki, e.anki); }
-    tally(a.lesson, e.lesson); tally(a.input, e.input); tally(a.output, e.output);
+    tally(a.lesson, e.lesson); tally(a.io, e.io);
     tally(a.piano, e.piano); tally(a.sleep, e.sleep);
     bump(a.topics, e.topics); bump(a.pieces, e.pianoNote);
   }
   let i = flags.length - 1;
-  if (tn >= 1 && tn <= TOTAL && !flags[i]) i--;  // today isn't over: it can't break the run yet
+  if (tn >= 1 && tn <= TOTAL && !flags[i]) i--;  // today isn't over: it can't break the streak yet
   while (i >= 0 && flags[i]) { a.streak++; i--; }
   let cur = 0;
   for (const f of flags) { cur = f ? cur + 1 : 0; a.best = Math.max(a.best, cur); }
@@ -287,8 +316,7 @@ function factRows(a, focus) {
       ["average, on days studied", a.ankiDays ? `${Math.round(a.anki / a.ankiDays)} <small>words</small>` : "–"],
       ["best day", a.bestAnki ? `${a.bestAnki} <small>words</small>` : "–"],
       ["lesson", `${pct(a.lesson)} <small>of days</small>`],
-      ["input", `${pct(a.input)} <small>of days</small>`],
-      ["output", `${pct(a.output)} <small>of days</small>`],
+      ["input/output", `${pct(a.io)} <small>of days</small>`],
     ];
     case "piano": return [
       ["days played", of(a.piano)],
@@ -299,23 +327,19 @@ function factRows(a, focus) {
       ["ready by 2am", of(a.sleep)],
       ["share of nights", pct(a.sleep)],
     ];
-    default: return [
-      ["days complete", a.last ? `${a.complete} <small>of ${a.last}</small>` : "–"],
-      ["partly logged", days(a.part)],
-      ["nothing logged", days(a.missed)],
-      ["streak", `${days(a.streak)} <small>· best ${a.best}</small>`],
-      ["ends", longDate(END)],
-    ];
+    default: return [];
   }
 }
 
 function paintFacts(animate) {
-  const a = aggregate();
   const d = DOMAINS.find((x) => x.id === state.focus);
-  $("#factsLabel").textContent = d ? d.name : "overall";
+  $("#factsLabel").textContent = d ? d.name : "tally";
   const box = $("#facts");
+  $("#tally").hidden = !!d;
+  box.hidden = !d;
+  if (!d) return;
   if (animate) box.dataset.anim = "1"; else delete box.dataset.anim;
-  box.innerHTML = factRows(a, state.focus).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  box.innerHTML = factRows(aggregate(), state.focus).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
 }
 
 const shown = new WeakMap();
@@ -351,11 +375,11 @@ function paintSummary() {
   } else if (a.tn > TOTAL) {
     $("#verdictLabel").textContent = "finished";
     $("#verdict").textContent = `${a.complete} of ${TOTAL}`;
-    $("#subline").textContent = "days complete";
+    $("#subline").textContent = "days logged";
   } else {
     $("#verdictLabel").textContent = "today";
     $("#verdict").textContent = `day ${a.tn}`;
-    $("#subline").textContent = `${a.complete} complete · ${a.tn === TOTAL ? "last day" : `${TOTAL - a.tn} left`}`;
+    $("#subline").textContent = `${a.complete} logged · ${a.tn === TOTAL ? "last day" : `${TOTAL - a.tn} left`}`;
   }
 
   const nums = {
@@ -367,8 +391,11 @@ function paintSummary() {
   };
   $$(".stat").forEach((s) => { $(".n", s).textContent = nums[s.dataset.focus]; });
 
-  const seg = { high: a.complete, mid: a.part, low: a.missed, unknown: a.upcoming };
-  const label = { high: "complete", mid: "partly logged", low: "nothing logged", unknown: "still to come" };
+  $("#tPerfect").textContent = a.perfect; $("#tPartial").textContent = a.part;
+  $("#tNone").textContent = a.none; $("#tStreak").textContent = a.streak;
+  $("#tStreak").parentElement.title = `best streak: ${a.best}`;
+  const seg = { high: a.perfect, mid: a.part, low: a.none, unknown: a.upcoming };
+  const label = { high: "perfect", mid: "partial", low: "none", unknown: "still to come" };
   for (const t of Object.keys(seg)) { const el = $(`#coverage [data-tone="${t}"]`); el.style.flexGrow = seg[t]; el.title = `${seg[t]} ${label[t]}`; }
 
   paintFacts(false);
@@ -507,7 +534,7 @@ function paintFields() {
   const locked = !editable(state.sel);
   $("#form").toggleAttribute("data-locked", locked);
   $$("input, textarea, button", $("#form")).forEach((x) => { x.disabled = locked; });
-  $("#dayNote").textContent = locked ? "this day hasn't come yet." : "";
+  $("#dayNote").textContent = TEST_ANY_DAY && state.sel > today ? "test mode: any day can be logged." : locked ? "this day hasn't come yet." : "";
 }
 
 function parseNum(raw, f) {
@@ -652,7 +679,18 @@ function refreshToday() {
   paintSummary();
   if (followed && dayNo(t) >= 1 && dayNo(t) <= TOTAL) selectDay(t); else paintFields();
 }
-document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); else refreshToday(); });
+
+/* coming back after a while, land on the day to log so you can start straight away */
+let hiddenAt = 0;
+function goToLogDay() {
+  selectDay(dateOf(clamp(dayNo(today), 1, TOTAL)));
+  if (!wide()) document.body.classList.add("has-day");
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { hiddenAt = Date.now(); flush(); return; }
+  refreshToday();
+  if (hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000) { closeBackup(); goToLogDay(); }
+});
 
 /* ----------------------------------------------------------------- backup */
 
@@ -694,7 +732,8 @@ function clean(e) {
   const out = {};
   if (typeof e.hours === "number" && isFinite(e.hours)) out.hours = clamp(e.hours, 0, 24);
   if (typeof e.anki === "number" && isFinite(e.anki)) out.anki = clamp(Math.round(e.anki), 0, 9999);
-  for (const k of ["diet", "supps", "lesson", "input", "output", "piano", "sleep"]) if (typeof e[k] === "boolean") out[k] = e[k];
+  for (const k of ["diet", "supps", "lesson", "io", "piano", "sleep"]) if (typeof e[k] === "boolean") out[k] = e[k];
+  if (!("io" in out) && (typeof e.input === "boolean" || typeof e.output === "boolean")) out.io = !!(e.input || e.output);
   if (["push", "pull", "legs", "rest"].includes(e.gym)) out.gym = e.gym;
   for (const k of ["topics", "pianoNote"]) if (typeof e[k] === "string" && e[k].trim()) out[k] = e[k].slice(0, 2000);
   return out;
@@ -744,6 +783,11 @@ function boot() {
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   if (!persist()) setStatus("error", "can't save here");
   else setStatus("ok", "saved");
+  // stay hidden until the type is in, then settle in; the strokes start drawing once it shows
+  const reveal = () => requestAnimationFrame(() => document.documentElement.classList.add("show"));
+  const fonts = document.fonts && document.fonts.load
+    ? Promise.all([document.fonts.load('500 16px "Shippori Mincho"'), document.fonts.load('600 16px "Shippori Mincho"')]) : Promise.resolve();
+  Promise.race([fonts, new Promise((r) => setTimeout(r, 1500))]).then(reveal, reveal);
 }
 boot();
 

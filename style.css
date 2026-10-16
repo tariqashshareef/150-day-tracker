@@ -134,9 +134,9 @@ html[data-theme="dark"] .mode .sun { opacity: 1; transform: none; }
 .enso svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .enso-guide { fill: none; stroke: var(--hair); stroke-width: 1; }
 .enso-time { fill: none; stroke: var(--sumi-3); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 0 1000; opacity: .75;
-  transform-box: fill-box; transform-origin: center; transform: rotate(-24deg); transition: stroke-dasharray 1.6s var(--ink-ease); }
+  transform-box: fill-box; transform-origin: center; transform: rotate(0deg); transition: stroke-dasharray 1.6s var(--ink-ease); }
 .enso-arc { fill: none; stroke: var(--sumi); stroke-width: 12; stroke-linecap: round; stroke-dasharray: 0 1000; stroke-dashoffset: -6;
-  transform-box: fill-box; transform-origin: center; transform: rotate(-24deg);
+  transform-box: fill-box; transform-origin: center; transform: rotate(0deg);
   transition: stroke-dasharray 1.6s var(--ink-ease); }
 .enso-num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .enso-num b { font: 600 66px/1 var(--mincho); font-variant-numeric: tabular-nums; }
@@ -174,9 +174,12 @@ html[data-theme="dark"] .mode .sun { opacity: 1; transform: none; }
 
 .tally-wrap { margin-top: 20px; }
 .facts { margin: 6px 0 0; padding: 0; }
-.facts[hidden], .tally[hidden] { display: none; }
+.pane { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .6s var(--ink-ease), opacity .45s var(--ink-ease); }
+.pane-in { min-height: 0; overflow: hidden; padding: 14px 24px; margin: -14px -24px; }   /* the padding keeps the streak's glints from being clipped */
+.tally-wrap[data-mode="facts"] .pane-tally, .tally-wrap[data-mode="tally"] .pane-facts { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
+.pane-facts .label { display: block; }
 .facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; padding: 10px 4px; border-bottom: 1px solid var(--hair); }
-.facts[data-anim] > div { animation: soak .7s var(--ink-ease) both; }
+.facts[data-anim] > div { animation: soak .7s var(--ink-ease) both; animation-delay: calc(var(--i, 0) * 60ms); }
 .facts dt { color: var(--sumi-2); font-size: 14px; }
 .facts dd { margin: 0; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; min-width: 0; }
 .facts dd small { color: var(--sumi-3); font-size: 13px; }
@@ -254,6 +257,9 @@ html[data-theme="dark"] .mode .sun { opacity: 1; transform: none; }
 html[data-theme="dark"] .stamp { mix-blend-mode: normal; }
 .stamp::after { content: ""; position: absolute; inset: 4px; border: 1px solid var(--shu); opacity: .55; border-radius: 1px; }
 body.complete .stamp { visibility: visible; }
+body.celebrating .stamp { visibility: hidden !important; }
+body.settle .stamp { animation: settle .45s var(--ink-ease) both; }
+@keyframes settle { from { transform: scale(1.16) rotate(5deg); } to { transform: scale(1) rotate(5deg); } }
 body.stamping .stamp { animation: stamp-down .7s var(--ink-ease) both; }
 @keyframes stamp-down { 0% { opacity: 0; transform: scale(1.9) rotate(5deg); } 55% { opacity: 1; transform: scale(.96) rotate(5deg); } 100% { transform: scale(1) rotate(5deg); } }
 
@@ -477,3 +483,48 @@ input, textarea { -webkit-user-select: text; user-select: text; -webkit-touch-ca
 @keyframes numpop { 0% { transform: scale(1); } 35% { transform: scale(1.4); } 100% { transform: scale(1); } }
 body.stamping .hero-wrap { animation: thud .5s var(--ink-ease) .34s; }
 @keyframes thud { 0% { transform: translateY(0); } 25% { transform: translateY(3px); } 55% { transform: translateY(-1px); } 100% { transform: translateY(0); } }
+
+/* ---------- the day, wrapped up ---------- */
+.wrap { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; touch-action: manipulation; }
+.wrap[hidden] { display: none; }
+.wrap::before { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--washi) 86%, transparent); opacity: 0; transition: opacity .45s var(--ink-ease); }
+.wrap.go::before { opacity: 1; }
+.wrap.out::before { opacity: 0; transition-duration: .5s; }
+.wrap-stage { position: relative; z-index: 1; width: min(290px, 78vw); }
+.wrap.go .wrap-stage { animation: thud2 .45s ease-out .62s; }
+@keyframes thud2 { 0% { transform: translateY(0); } 30% { transform: translateY(6px); } 65% { transform: translateY(-2px); } 100% { transform: translateY(0); } }
+.leaf { position: relative; padding: 34px 26px 24px; background: var(--washi-2); border: 1px solid var(--hair); border-radius: 3px;
+  box-shadow: 0 26px 64px color-mix(in srgb, var(--sumi) 22%, transparent); opacity: 0; }
+.leaf::before { content: ""; position: absolute; left: 16px; right: 16px; top: 15px; border-top: 1px dashed var(--stitch); }
+.leaf::after { content: ""; position: absolute; left: 50%; top: 6px; width: 7px; height: 7px; margin-left: -3px; border-radius: 50%; background: var(--washi); box-shadow: inset 0 0 0 1px var(--hair); }
+.wrap.go .leaf { animation: leaf-in .6s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes leaf-in { from { opacity: 0; transform: translateY(-50px) rotate(-5deg) scale(.93); } to { opacity: 1; transform: translateY(0) rotate(-1.4deg) scale(1); } }
+.wrap.lift .leaf { animation: leaf-out .55s var(--ink-ease) forwards; }
+@keyframes leaf-out { from { opacity: 1; transform: rotate(-1.4deg); } to { opacity: 0; transform: translateY(-26px) rotate(-3.5deg) scale(.97); } }
+.leaf-top { color: var(--sumi-2); font-size: 13px; letter-spacing: .3em; }
+.leaf-top .wj { color: var(--sumi); margin-right: 6px; letter-spacing: 0; }
+.leaf-date { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 8px; }
+.leaf-date .dd { font: 600 100px/1 var(--mincho); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.leaf-date .mm { font: 500 30px/1 var(--mincho); color: var(--sumi-2); letter-spacing: .12em; }
+.leaf-date .yr { align-self: center; writing-mode: vertical-rl; text-orientation: upright; font: 500 12px/1 var(--mincho); letter-spacing: .08em; color: var(--sumi-3); }
+.leaf-day { color: var(--sumi-2); font-size: 14px; letter-spacing: .1em; }
+.leaf-note { min-height: 48px; margin-top: 22px; font-size: 17px; letter-spacing: .06em; opacity: 0; }
+.wrap.go .leaf-note { animation: soak .8s var(--ink-ease) 1s both; }
+.leaf-note .gold { color: #c8932a; font-weight: 600; }
+.wrap-seal { position: absolute; right: 8px; bottom: 30px; z-index: 2; width: 112px; height: 112px; display: grid; place-items: center;
+  border: 3px solid var(--shu); color: var(--shu); border-radius: 5px; font: 600 64px/1 var(--mincho); filter: url(#seal); mix-blend-mode: multiply; opacity: 0; transform: rotate(-4deg); }
+html[data-theme="dark"] .wrap-seal { mix-blend-mode: normal; }
+.wrap-seal::after { content: ""; position: absolute; inset: 7px; border: 1.5px solid var(--shu); opacity: .55; border-radius: 2px; }
+.wrap.go .wrap-seal { animation: seal-land .5s cubic-bezier(.2, 1, .3, 1) .3s both; }
+@keyframes seal-land { 0% { opacity: 0; transform: scale(2.8) rotate(-16deg); } 60% { opacity: 1; transform: scale(.93) rotate(-4deg); } 100% { opacity: 1; transform: scale(1) rotate(-4deg); } }
+/* ink ripples and a burst of flakes from where the seal lands */
+.wrap-fx { position: absolute; right: 8px; bottom: 30px; z-index: 1; width: 112px; height: 112px; pointer-events: none; }
+.wrap-fx::before, .wrap-fx::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--shu); opacity: 0; }
+.wrap.go .wrap-fx::before { animation: ripple 1.2s var(--ink-ease) .5s both; }
+.wrap.go .wrap-fx::after { animation: ripple 1.2s var(--ink-ease) .68s both; }
+@keyframes ripple { from { opacity: .65; transform: scale(.55); } to { opacity: 0; transform: scale(3.1); } }
+.wrap-fx i { position: absolute; left: 50%; top: 50%; width: var(--s); height: var(--s); background: var(--c); opacity: 0;
+  clip-path: polygon(8% 12%, 62% 0, 100% 38%, 78% 100%, 14% 82%); }
+.wrap.go .wrap-fx i { animation: bit 1.5s cubic-bezier(.15, .7, .3, 1) calc(.5s + var(--d)) both; }
+@keyframes bit { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.3); } 12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(var(--r)) scale(1); } }

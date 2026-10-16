@@ -165,6 +165,19 @@ const wide = () => matchMedia("(min-width: 1121px)").matches;
 const TEST_ANY_DAY = true;
 const editable = (date) => TEST_ANY_DAY || date <= today;
 
+/* a quick second tap would zoom the page on iOS. pinching still works. a quick second tap on a button still presses it */
+let lastTap = 0, lastTapX = 0, lastTapY = 0;
+document.addEventListener("touchend", (e) => {
+  if (e.touches.length || e.changedTouches.length !== 1) return;
+  const t = e.changedTouches[0], quick = e.timeStamp - lastTap < 350 && Math.hypot(t.clientX - lastTapX, t.clientY - lastTapY) < 40;
+  lastTap = e.timeStamp; lastTapX = t.clientX; lastTapY = t.clientY;
+  if (!quick || e.target.closest("input, textarea, select")) return;
+  e.preventDefault();
+  const press = e.target.closest("button, label, a, .cell");
+  if (press) press.click();
+  lastTap = 0;
+}, { passive: false });
+
 /* ----------------------------------------------------------------- feel: sound and touch */
 
 // everything is synthesized, so there are no audio files. the speaker button in the header turns sound and touch off together.
@@ -217,8 +230,9 @@ const sfx = {
   tick()   { blip(1100, 900, 0.04, { type: "triangle", gain: 0.06 }); },
   swish()  { hiss(0.22, 600, 2800, { gain: 0.05 }); },                                                           // a page turning
   part()   { blip(784, 784, 0.4, { gain: 0.08 }); blip(1175, 1175, 0.55, { gain: 0.07, at: 0.09 }); },          // a part of the day is done
-  stamp()  { blip(150, 48, 0.24, { gain: 0.3 }); hiss(0.08, 300, 90, { gain: 0.1 });                              // the hanko lands, then rings
-             blip(1046, 1046, 1.0, { gain: 0.07, at: 0.07 }); blip(1568, 1568, 0.8, { gain: 0.045, at: 0.07 }); blip(2093, 2093, 0.55, { gain: 0.025, at: 0.07 }); },
+  wrap()   { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => blip(f, f, 0.34, { type: "triangle", gain: 0.085, at: i * 0.09 }));   // C E G C, rising
+             blip(150, 48, 0.26, { gain: 0.3, at: 0.3 }); hiss(0.08, 300, 90, { gain: 0.1, at: 0.3 });                                        // the hanko lands on the last note
+             blip(1046.5, 1046.5, 1.1, { gain: 0.07, at: 0.3 }); blip(1568, 1568, 0.85, { gain: 0.045, at: 0.3 }); blip(2093, 2093, 0.6, { gain: 0.025, at: 0.3 }); },
   streak() { [1319, 1568, 1976, 2637].forEach((f, i) => blip(f, f, 0.45, { gain: 0.045, at: i * 0.07 })); },     // a run of sparkles
 };
 const play = (name) => { if (feel.on) { try { sfx[name](); } catch (e) { /* no audio here */ } } };
@@ -328,7 +342,6 @@ const paintAllCells = () => cells.forEach((_, date) => paintCell(date));
 $("#months").addEventListener("click", (e) => {
   const cell = e.target.closest(".cell[data-date]");
   if (!cell) return;
-  cue("tick");
   selectDay(cell.dataset.date);
   openDayPage();
 });
@@ -423,14 +436,12 @@ function factRows(a, focus) {
 
 function paintFacts(animate) {
   const d = DOMAINS.find((x) => x.id === state.focus);
-  $("#factsLabel").textContent = d ? d.name : "";
-  $("#factsLabel").hidden = !d;
+  $("#tallyWrap").dataset.mode = d ? "facts" : "tally";   // the two panels fold into each other
+  if (!d) return;                                         // the facts stay as they were while they fold away
+  $("#factsLabel").textContent = d.name;
   const box = $("#facts");
-  $("#tally").hidden = !!d;
-  box.hidden = !d;
-  if (!d) return;
   if (animate) box.dataset.anim = "1"; else delete box.dataset.anim;
-  box.innerHTML = factRows(aggregate(), state.focus).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  box.innerHTML = factRows(aggregate(), state.focus).map(([k, v], i) => `<div style="--i:${i}"><dt>${k}</dt><dd>${v}</dd></div>`).join("");
 }
 
 const shown = new WeakMap();
@@ -574,7 +585,7 @@ function setVal(k, v) {
 function afterEdit() {
   loud = true;
   const { complete, was, newlyDone } = paintSections(true);
-  if (complete && !was) { stampIn(); cue("stamp", 3); }
+  if (complete && !was) celebrate();
   else if (newlyDone) cue("part", 2);
   paintCell(state.sel);
   queueSummary();
@@ -597,6 +608,58 @@ function paintSections(announce = false) {
   document.body.classList.toggle("complete", st.complete);
   return { complete: st.complete, was, newlyDone };
 }
+
+/* the whole day wrapped up: a calendar leaf drops in, the hanko lands on it with a rising jingle, then it flies up to its place on the page */
+const ceremonyAt = {};
+let wrapTimers = [], wrapFly = null;
+function wrapEnd(scrollUp) {
+  wrapTimers.forEach(clearTimeout); wrapTimers = [];
+  if (wrapFly) { wrapFly.cancel(); wrapFly = null; }
+  const w = $("#wrap");
+  w.hidden = true; w.className = "wrap";
+  document.body.classList.remove("celebrating");
+  document.body.classList.add("settle");
+  setTimeout(() => document.body.classList.remove("settle"), 500);
+  if (scrollUp) $("#dayScroll").scrollTo({ top: 0, behavior: "smooth" });
+}
+function celebrate() {
+  const date = state.sel, now = Date.now();
+  if (ceremonyAt[date] && now - ceremonyAt[date] < 60000) { stampIn(); return; }   // this one was just celebrated
+  ceremonyAt[date] = now;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { stampIn(); cue("wrap", 2); return; }
+  const d = parse(date), n = dayNo(date), a = aggregate();
+  const perfect = statusOf(date).per.every((p) => p.tone === "high");
+  $("#leafTop").innerHTML = `<span class="wj">${WEEK_J[d.getDay()]}</span>${WEEK_E[d.getDay()]}`;
+  $("#leafDate").innerHTML = `<b class="dd">${d.getDate()}</b><span class="mm">${MON3[d.getMonth()]}</span><span class="yr">${d.getFullYear()}</span>`;
+  $("#leafDay").textContent = `day ${n} of ${TOTAL}`;
+  const inRow = date === dateOf(clamp(a.tn, 1, TOTAL)) && a.streak > 1;
+  $("#leafNote").innerHTML = perfect ? (inRow ? `a perfect day<br><span class="gold">${a.streak} in a row</span>` : "a perfect day") : "all logged";
+  const colors = ["var(--shu)", "#e3b64b", "#d9a42f", "var(--shu)"];
+  $("#wrapFx").innerHTML = Array.from({ length: 30 }, () => {
+    const ang = Math.random() * Math.PI * 2, dist = 60 + Math.random() * 110;
+    return `<i style="--s:${(4 + Math.random() * 6).toFixed(1)}px;--c:${colors[Math.floor(Math.random() * colors.length)]};--tx:${(Math.cos(ang) * dist).toFixed(0)}px;` +
+      `--ty:${(Math.sin(ang) * dist + 40).toFixed(0)}px;--r:${Math.floor(Math.random() * 360)}deg;--d:${(Math.random() * 0.12).toFixed(2)}s"></i>`;
+  }).join("");
+  const w = $("#wrap");
+  wrapEnd(false);
+  document.body.classList.remove("settle");
+  w.hidden = false;
+  document.body.classList.add("celebrating");
+  void w.offsetWidth;
+  w.classList.add("go");
+  cue("wrap", 5);
+  wrapTimers.push(setTimeout(() => { w.classList.add("lift"); $("#dayScroll").scrollTo({ top: 0, behavior: "smooth" }); }, 2300));
+  wrapTimers.push(setTimeout(() => {
+    const seal = $("#wrapSeal"), to = $("#stamp").getBoundingClientRect(), from = seal.getBoundingClientRect();
+    const dx = to.left + to.width / 2 - (from.left + from.width / 2), dy = to.top + to.height / 2 - (from.top + from.height / 2);
+    w.classList.add("out");   // the veil fades while the hanko flies up to its place
+    wrapFly = seal.animate(
+      [{ transform: "translate(0, 0) scale(1) rotate(-4deg)" }, { transform: `translate(${dx}px, ${dy}px) scale(${to.width / seal.offsetWidth}) rotate(5deg)` }],
+      { duration: 540, easing: "cubic-bezier(.5, 0, .2, 1)", fill: "forwards" });
+    wrapFly.onfinish = () => wrapEnd(false);
+  }, 2900));
+}
+$("#wrap").addEventListener("click", () => { if (!wrapFly) wrapEnd(true); });   // a tap skips it
 
 function stampIn() {
   document.body.classList.remove("stamping");
@@ -759,7 +822,6 @@ $("#nextDay").addEventListener("click", () => stepDay(1));
 function openDayPage() {
   if (wide() || document.body.classList.contains("has-day")) return;
   document.body.classList.add("has-day");
-  cue("swish");
 }
 function closeDayPage() {
   if (wide() || !document.body.classList.contains("has-day")) return;

@@ -133,15 +133,19 @@
         <i data-tone="high"></i><i data-tone="mid"></i><i data-tone="low"></i><i data-tone="unknown"></i>
       </div>
 
-      <div class="tally-wrap">
-        <span class="label" id="factsLabel" hidden></span>
-        <div class="tally" id="tally">
+      <div class="tally-wrap" id="tallyWrap" data-mode="tally">
+        <div class="pane pane-tally"><div class="pane-in">
+          <div class="tally" id="tally">
           <div class="t" style="--c: var(--high)"><b id="tPerfect">0</b><span><i></i>perfect</span></div>
           <div class="t" style="--c: var(--mid)"><b id="tPartial">0</b><span><i></i>partial</span></div>
           <div class="t" style="--c: var(--low)"><b id="tNone">0</b><span><i></i>none</span></div>
           <div class="t streak" id="streakBox"><div class="stnum"><b id="tStreak">0</b><div class="glint" id="glint" aria-hidden="true"></div></div><span><i></i>streak</span></div>
         </div>
-        <dl class="facts" id="facts" hidden></dl>
+        </div></div>
+        <div class="pane pane-facts"><div class="pane-in">
+          <span class="label" id="factsLabel"></span>
+          <dl class="facts" id="facts"></dl>
+        </div></div>
       </div>
 
       <div class="months" id="months"></div>
@@ -201,6 +205,20 @@
     </div>
     <p class="progress-text" id="backupMsg"></p>
     <p class="sheet-warn">importing replaces any day that is in the file. other days stay as they are.</p>
+  </div>
+</div>
+
+<!-- the day is wrapped up: a calendar leaf drops in and the hanko lands on it -->
+<div class="wrap" id="wrap" hidden aria-hidden="true">
+  <div class="wrap-stage" id="wrapStage">
+    <div class="leaf">
+      <div class="leaf-top" id="leafTop"></div>
+      <div class="leaf-date" id="leafDate"></div>
+      <div class="leaf-day" id="leafDay"></div>
+      <div class="leaf-note" id="leafNote"></div>
+    </div>
+    <div class="wrap-fx" id="wrapFx"></div>
+    <div class="wrap-seal" id="wrapSeal"><span>済</span></div>
   </div>
 </div>
 

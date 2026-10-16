@@ -60,7 +60,7 @@ const DOMAINS = [
   { id: "gym",   name: "gym",      ch: "鍛", yomi: "たん",   keys: ["gym", "diet", "supps"],
     tone: (e) => { const n = 1 + (e.diet ? 1 : 0) + (e.supps ? 1 : 0); return n === 3 ? "high" : "mid"; } },   // any session counts, rest included
   { id: "jp",    name: "japanese", ch: "語", yomi: "ご",     keys: ["anki", "lesson", "io"],
-    tone: (e) => { const n = (e.anki > 0 ? 1 : 0) + (e.lesson ? 1 : 0) + (e.io ? 1 : 0); return n === 0 ? "low" : n === 3 && e.anki > 50 ? "high" : "mid"; } },
+    tone: (e) => { const n = (e.anki > 0 ? 1 : 0) + (e.lesson ? 1 : 0) + (e.io ? 1 : 0); return n === 0 ? "low" : n === 3 && e.anki >= 50 ? "high" : "mid"; } },
   { id: "piano", name: "piano",    ch: "音", yomi: "おと",   keys: ["piano"],
     tone: (e) => (e.piano ? "high" : "low") },
   { id: "sleep", name: "sleep",    ch: "眠", yomi: "ねむり", keys: ["sleep"],
@@ -81,6 +81,7 @@ const FORM = [
     { k: "anki", t: "num", label: "anki vocab studied?", unit: "", step: 10, max: 9999, dec: false },
     { k: "lesson", t: "yn", label: "lesson today?" },
     { k: "io", t: "yn", label: "input/output today?" },
+    { k: "jpNote", t: "text", label: "studied?", ph: "phonetics, anime..." },
   ] },
   { d: "piano", fields: [
     { k: "piano", t: "yn", label: "session today?" },
@@ -164,6 +165,96 @@ const wide = () => matchMedia("(min-width: 1121px)").matches;
 const TEST_ANY_DAY = true;
 const editable = (date) => TEST_ANY_DAY || date <= today;
 
+/* ----------------------------------------------------------------- feel: sound and touch */
+
+// everything is synthesized, so there are no audio files. the speaker button in the header turns sound and touch off together.
+const FEEL_KEY = "d150.feel";
+const feel = { on: true, ctx: null, buf: null, label: null };
+try { feel.on = localStorage.getItem(FEEL_KEY) !== "off"; } catch (e) { /* default on */ }
+
+function ac() {
+  if (!feel.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; feel.ctx = new C(); }
+  if (feel.ctx.state !== "running") feel.ctx.resume().catch(() => {});
+  return feel.ctx;
+}
+function blip(f0, f1, d, { type = "sine", gain = 0.12, at = 0 } = {}) {
+  const c = feel.on && ac();
+  if (!c) return;
+  const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(f0, t);
+  if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + d);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.connect(g).connect(c.destination);
+  o.start(t); o.stop(t + d + 0.03);
+}
+function hiss(d, f0, f1, { gain = 0.05, at = 0 } = {}) {
+  const c = feel.on && ac();
+  if (!c) return;
+  if (!feel.buf) {
+    feel.buf = c.createBuffer(1, c.sampleRate, c.sampleRate);
+    const ch = feel.buf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  }
+  const t = c.currentTime + at, src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+  src.buffer = feel.buf; f.type = "bandpass"; f.Q.value = 0.9;
+  f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + d);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + d * 0.35);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  src.connect(f).connect(g).connect(c.destination);
+  src.start(t); src.stop(t + d + 0.03);
+}
+const sfx = {
+  yes()    { blip(660, 400, 0.11, { type: "triangle", gain: 0.14 }); blip(1320, 900, 0.05, { gain: 0.03 }); },   // a bright wooden tok
+  no()     { blip(360, 220, 0.13, { type: "triangle", gain: 0.13 }); },                                          // the same tok, lower
+  pick()   { blip(520, 330, 0.1, { type: "triangle", gain: 0.13 }); },
+  clear()  { blip(300, 200, 0.07, { gain: 0.06 }); },
+  up()     { blip(900, 1050, 0.05, { type: "triangle", gain: 0.07 }); },                                          // bamboo ticks, rising and falling
+  down()   { blip(760, 600, 0.05, { type: "triangle", gain: 0.07 }); },
+  tick()   { blip(1100, 900, 0.04, { type: "triangle", gain: 0.06 }); },
+  swish()  { hiss(0.22, 600, 2800, { gain: 0.05 }); },                                                           // a page turning
+  part()   { blip(784, 784, 0.4, { gain: 0.08 }); blip(1175, 1175, 0.55, { gain: 0.07, at: 0.09 }); },          // a part of the day is done
+  stamp()  { blip(150, 48, 0.24, { gain: 0.3 }); hiss(0.08, 300, 90, { gain: 0.1 });                              // the hanko lands, then rings
+             blip(1046, 1046, 1.0, { gain: 0.07, at: 0.07 }); blip(1568, 1568, 0.8, { gain: 0.045, at: 0.07 }); blip(2093, 2093, 0.55, { gain: 0.025, at: 0.07 }); },
+  streak() { [1319, 1568, 1976, 2637].forEach((f, i) => blip(f, f, 0.45, { gain: 0.045, at: i * 0.07 })); },     // a run of sparkles
+};
+const play = (name) => { if (feel.on) { try { sfx[name](); } catch (e) { /* no audio here */ } } };
+
+// touch: Android vibrates; on iOS 17.4+ toggling a hidden switch control makes the phone tick
+function hap(n = 1) {
+  if (!feel.on) return;
+  try {
+    if (navigator.vibrate) { navigator.vibrate(n === 1 ? 8 : [10, 40, 18]); return; }
+    if (!feel.label) {
+      feel.label = document.createElement("label");
+      feel.label.setAttribute("aria-hidden", "true");
+      feel.label.style.display = "none";
+      const input = document.createElement("input");
+      input.type = "checkbox"; input.setAttribute("switch", "");
+      feel.label.append(input);
+      document.head.append(feel.label);
+    }
+    feel.label.click();
+    for (let k = 1; k < n; k++) setTimeout(() => feel.label.click(), k * 75);
+  } catch (e) { /* no haptics here */ }
+}
+const cue = (name, n = 1) => { play(name); hap(n); };
+
+function paintFeel() {
+  const b = $("#feelBtn");
+  b.toggleAttribute("data-off", !feel.on);
+  b.title = `sound and touch: ${feel.on ? "on" : "off"}`;
+}
+$("#feelBtn").addEventListener("click", () => {
+  feel.on = !feel.on;
+  try { localStorage.setItem(FEEL_KEY, feel.on ? "on" : "off"); } catch (e) { /* not remembered */ }
+  paintFeel();
+  if (feel.on) cue("tick");
+});
+
 /* ----------------------------------------------------------------- theme */
 
 const isDark = () => document.documentElement.dataset.theme === "dark";
@@ -172,7 +263,7 @@ function setTheme(theme, remember = true) {
   if (remember) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* private window: just don't remember */ } }
   const bar = $('meta[name="theme-color"]');
   if (bar) bar.setAttribute("content", isDark() ? "#121214" : "#f4ede0");
-  $$(".mode").forEach((b) => { b.title = isDark() ? "back to daylight" : "night mode"; });
+  $$(".mode:not(#feelBtn)").forEach((b) => { b.title = isDark() ? "back to daylight" : "night mode"; });
 }
 /* day and night swap in a single frame under a veil of the old paper that fades away: smooth, and nothing repaints while it fades */
 function switchTheme(next) {
@@ -191,7 +282,7 @@ function switchTheme(next) {
     setTimeout(() => veil.remove(), 750);
   }));
 }
-$$(".mode").forEach((b) => b.addEventListener("click", () => switchTheme(isDark() ? "light" : "dark")));
+$$(".mode:not(#feelBtn)").forEach((b) => b.addEventListener("click", () => { cue("tick"); switchTheme(isDark() ? "light" : "dark"); }));
 
 /* ----------------------------------------------------------------- the months */
 
@@ -237,6 +328,7 @@ const paintAllCells = () => cells.forEach((_, date) => paintCell(date));
 $("#months").addEventListener("click", (e) => {
   const cell = e.target.closest(".cell[data-date]");
   if (!cell) return;
+  cue("tick");
   selectDay(cell.dataset.date);
   openDayPage();
 });
@@ -356,7 +448,7 @@ function setNum(el, to) {
   el._raf = requestAnimationFrame(step);
 }
 
-let ensoLen = 0;
+let ensoLen = 0, shownStreak = null, loud = false;   // loud: this repaint follows something you just logged
 function paintSummary() {
   const a = aggregate();
   ensoLen = ensoLen || $("#ensoArc").getTotalLength();
@@ -375,6 +467,8 @@ function paintSummary() {
 
   $("#tPerfect").textContent = a.perfect; $("#tPartial").textContent = a.part;
   $("#tNone").textContent = a.none; $("#tStreak").textContent = a.streak;
+  if (loud && shownStreak !== null && a.streak > shownStreak) { cue("streak", 2); burst(); }
+  loud = false; shownStreak = a.streak;
   $("#streakBox").toggleAttribute("data-on", a.streak > 0);
   const seg = { high: a.perfect, mid: a.part, low: a.none, unknown: a.upcoming };
   const label = { high: "perfect", mid: "partial", low: "none", unknown: "still to come" };
@@ -389,6 +483,7 @@ const queueSummary = () => { clearTimeout(summaryTimer); summaryTimer = setTimeo
 $("#stats").addEventListener("click", (e) => {
   const b = e.target.closest(".stat");
   if (!b) return;
+  cue("tick");
   state.focus = state.focus === b.dataset.focus ? null : b.dataset.focus;
   applyFocus(true);
 });
@@ -399,14 +494,21 @@ function applyFocus(animate) {
   paintFacts(animate);
 }
 
+function burst() {
+  const n = $(".stnum");
+  n.classList.remove("pop"); void n.offsetWidth; n.classList.add("pop");
+}
+
 /* sparkles and torn flakes of gold leaf around the streak */
 function buildGlint() {
-  // positions are percentages of the number's own box
-  const stars = [[-6, 4, 6, 0], [104, 8, 5, 1.2], [100, 92, 6, 2.2], [-4, 96, 5, 0.7]];
-  const flakes = [[30, 16, 3, 0.2, 20], [72, 38, 2.5, 1.3, 70], [46, 80, 3, 2, 140], [84, 70, 2, 0.9, 200], [14, 58, 2, 2.4, 40]];
+  // [x%, y%, size px, delay s, drift x px, drift y px, period s]; positions are within a box a little wider than the number
+  const stars = [[22, 22, 7, 0, -7, -6, 4.2], [78, 10, 5, 1.1, 8, -5, 3.6], [50, -4, 6, 2.3, -3, -8, 5], [92, 62, 6, 0.7, 9, 4, 4.4],
+                 [8, 84, 5, 1.9, -8, 5, 3.9], [64, 96, 4, 3, 5, 7, 4.8], [40, 52, 4, 2.6, 6, -6, 3.4]];
+  const flakes = [[28, 38, 3, 0.2, 20, 4, 11, 6.2], [70, 28, 2.5, 1.3, 70, -5, 12, 5.4], [56, 68, 3, 2.1, 140, 6, 10, 6.8], [88, 48, 2, 0.9, 200, 5, 13, 5.8],
+                  [30, 78, 2.5, 2.4, 40, -4, 11, 6.4], [78, 86, 2, 1.6, 100, 3, 9, 5.2], [12, 50, 2, 0.5, 160, -6, 12, 7], [48, 14, 2.5, 3.1, 60, 3, 12, 6]];
   $("#glint").innerHTML =
-    stars.map(([x, y, sz, d]) => `<em class="star" style="--x:${x}%;--y:${y}%;--s:${sz}px;--d:${d}s"></em>`).join("") +
-    flakes.map(([x, y, sz, d, r]) => `<em class="flake" style="--x:${x}%;--y:${y}%;--s:${sz}px;--d:${d}s;--r:${r}deg"></em>`).join("");
+    stars.map(([x, y, sz, d, dx, dy, p]) => `<em class="star" style="--x:${x}%;--y:${y}%;--s:${sz}px;--d:${d}s;--dx:${dx}px;--dy:${dy}px;--p:${p}s"></em>`).join("") +
+    flakes.map(([x, y, sz, d, r, dx, dy, p]) => `<em class="flake" style="--x:${x}%;--y:${y}%;--s:${sz}px;--d:${d}s;--r:${r}deg;--dx:${dx}px;--dy:${dy}px;--p:${p}s"></em>`).join("");
 }
 
 /* ----------------------------------------------------------------- the day form */
@@ -470,22 +572,30 @@ function setVal(k, v) {
 }
 
 function afterEdit() {
-  const { complete, was } = paintSections();
-  if (complete && !was) stampIn();
+  loud = true;
+  const { complete, was, newlyDone } = paintSections(true);
+  if (complete && !was) { stampIn(); cue("stamp", 3); }
+  else if (newlyDone) cue("part", 2);
   paintCell(state.sel);
   queueSummary();
 }
 
-function paintSections() {
+function paintSections(announce = false) {
   const st = statusOf(state.sel);
+  let newlyDone = 0;
   DOMAINS.forEach((d, i) => {
     const sec = secEls[i], p = st.per[i];
-    sec.dataset.state = p.complete ? "done" : p.answered ? "part" : "none";
+    const next = p.complete ? "done" : p.answered ? "part" : "none";
+    if (announce && next === "done" && sec.dataset.state !== "done") {
+      newlyDone++;
+      sec.classList.remove("pop"); void sec.offsetWidth; sec.classList.add("pop");   // the kanji gives a little pop
+    }
+    sec.dataset.state = next;
     $(".sec-prog", sec).textContent = p.complete ? "logged" : p.total > 1 && p.answered ? `${p.answered} / ${p.total}` : "";
   });
   const was = document.body.classList.contains("complete");
   document.body.classList.toggle("complete", st.complete);
-  return { complete: st.complete, was };
+  return { complete: st.complete, was, newlyDone };
 }
 
 function stampIn() {
@@ -546,6 +656,7 @@ form.addEventListener("click", (e) => {
   if (chip) {
     const v = chip.dataset.v, cur = entry()[k];
     const already = matchChip(cur, v);
+    cue(already ? "clear" : v === "yes" ? "yes" : v === "no" ? "no" : "pick");
     setVal(k, already ? null : v === "yes" ? true : v === "no" ? false : v);   // tap again to clear
     $$(".chip", fld).forEach((c) => c.setAttribute("aria-pressed", String(matchChip(entry()[k], c.dataset.v))));
     return;
@@ -554,14 +665,18 @@ form.addEventListener("click", (e) => {
   if (step) {
     const cur = entry()[k], dir = Number(step.dataset.dir);
     const v = clamp(Math.round(((cur || 0) + dir * f.step) * 100) / 100, 0, f.max);
+    cue(dir > 0 ? "up" : "down");
     setVal(k, v);
-    $("input", fld).value = String(v);
+    const box = $("input", fld);
+    box.value = String(v);
+    box.classList.remove("bump"); void box.offsetWidth; box.classList.add("bump");
     return;
   }
   const sg = e.target.closest(".sugg button");
   if (sg) {
     const ta = $("textarea", fld), base = ta.value.replace(/[\s,;]+$/, "");
     ta.value = base ? `${base}, ${sg.dataset.s}` : sg.dataset.s;
+    cue("tick");
     ta.dispatchEvent(new Event("input", { bubbles: true }));
     paintSugg(k);
   }
@@ -576,9 +691,17 @@ form.addEventListener("input", (e) => {
 form.addEventListener("focusout", (e) => {
   const fld = e.target.closest(".fld");
   if (!fld) return;
+  if (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".sugg")) return;   // moving onto a suggestion: leave it be
   const k = fld.dataset.k;
   if (e.target.matches(".num")) e.target.value = has(entry(), k) ? String(entry()[k]) : "";
   else if (e.target.matches("textarea")) paintSugg(k);
+});
+// tapping anywhere on a number row (not on a button) puts the cursor in its box
+form.addEventListener("pointerup", (e) => {
+  const fld = e.target.closest('.fld[data-t="num"]');
+  if (!fld || e.target.closest("button, input")) return;
+  const box = $("input", fld);
+  if (box && !box.disabled) box.focus();
 });
 form.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches(".num")) e.target.blur(); });
 
@@ -627,28 +750,54 @@ function selectDay(date) {
 }
 function stepDay(by) {
   const n = dayNo(state.sel) + by;
-  if (n >= 1 && n <= TOTAL) selectDay(dateOf(n));
+  if (n >= 1 && n <= TOTAL) { selectDay(dateOf(n)); cue("swish"); }
 }
 $("#prevDay").addEventListener("click", () => stepDay(-1));
 $("#nextDay").addEventListener("click", () => stepDay(1));
 
-/* on a phone the day is a page laid over the days; the phone's own back gesture closes it */
+/* on a phone the day is a page laid over the days. the "days" button closes it, and so does dragging in from the left edge */
 function openDayPage() {
   if (wide() || document.body.classList.contains("has-day")) return;
   document.body.classList.add("has-day");
-  history.pushState({ day: true }, "");
+  cue("swish");
 }
 function closeDayPage() {
-  if (wide()) return;
+  if (wide() || !document.body.classList.contains("has-day")) return;
   document.body.classList.remove("has-day");
+  cue("swish");
 }
-$("#toDays").addEventListener("click", () => {
-  if (history.state && history.state.day) {
-    history.back();
-    setTimeout(() => { if (document.body.classList.contains("has-day")) closeDayPage(); }, 250); // if nothing handled it
-  } else closeDayPage();
+$("#toDays").addEventListener("click", closeDayPage);
+
+const edge = $("#edge");
+let drag = null;
+edge.addEventListener("pointerdown", (e) => {
+  if (!document.body.classList.contains("has-day")) return;
+  drag = { id: e.pointerId, x: e.clientX, dx: 0, v: 0, last: e.clientX, lastT: performance.now() };
+  try { edge.setPointerCapture(e.pointerId); } catch (err) { /* fine without */ }
+  $("#day").style.transition = "none";
 });
-addEventListener("popstate", () => { if (!wide()) closeDayPage(); });
+edge.addEventListener("pointermove", (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const now = performance.now();
+  drag.v = (e.clientX - drag.last) / Math.max(1, now - drag.lastT);   // px per ms, for flicks
+  drag.last = e.clientX; drag.lastT = now;
+  drag.dx = Math.max(0, e.clientX - drag.x);
+  $("#day").style.transform = `translateX(${drag.dx}px)`;               // the page follows your finger
+});
+function endDrag() {
+  if (!drag) return;
+  const page = $("#day"), go = drag.dx > page.offsetWidth * 0.3 || (drag.v > 0.5 && drag.dx > 24);
+  drag = null;
+  page.style.transition = "transform .38s cubic-bezier(.22, .61, .2, 1)";
+  page.style.transform = go ? "translateX(105%)" : "translateX(0)";
+  if (go) cue("swish");
+  setTimeout(() => {
+    if (go) document.body.classList.remove("has-day");
+    page.style.transition = ""; page.style.transform = "";
+  }, 400);
+}
+edge.addEventListener("pointerup", endDrag);
+edge.addEventListener("pointercancel", endDrag);
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { closeBackup(); return; }
@@ -691,7 +840,7 @@ function backupInfo() {
   const n = Object.keys(db.entries).length;
   $("#backupInfo").textContent = `${n} ${n === 1 ? "day" : "days"} logged · last export ${db.exported ? shortDate(ymd(new Date(db.exported))) : "never"}`;
 }
-function openBackup() { backupInfo(); $("#backupMsg").textContent = ""; $("#backupSheet").hidden = false; }
+function openBackup() { cue("swish"); backupInfo(); $("#backupMsg").textContent = ""; $("#backupSheet").hidden = false; }
 function closeBackup() { $("#backupSheet").hidden = true; }
 $("#backupBtn").addEventListener("click", openBackup);
 $("#backupClose").addEventListener("click", closeBackup);
@@ -726,7 +875,7 @@ function clean(e) {
   for (const k of ["diet", "supps", "lesson", "io", "piano", "sleep"]) if (typeof e[k] === "boolean") out[k] = e[k];
   if (!("io" in out) && (typeof e.input === "boolean" || typeof e.output === "boolean")) out.io = !!(e.input || e.output);
   if (["push", "pull", "legs", "rest"].includes(e.gym)) out.gym = e.gym;
-  for (const k of ["topics", "pianoNote"]) if (typeof e[k] === "string" && e[k].trim()) out[k] = e[k].slice(0, 2000);
+  for (const k of ["topics", "pianoNote", "jpNote"]) if (typeof e[k] === "string" && e[k].trim()) out[k] = e[k].slice(0, 2000);
   return out;
 }
 $("#importFile").addEventListener("change", async (ev) => {
@@ -764,6 +913,7 @@ function boot() {
   buildMonths();
   buildForm();
   buildGlint();
+  paintFeel();
   const n = clamp(dayNo(today), 1, TOTAL);
   state.sel = dateOf(n);
   paintAllCells();

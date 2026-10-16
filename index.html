@@ -96,6 +96,9 @@
         <div class="brand"><span class="seal"><span>日</span></span><b>150 days</b></div>
         <div class="top-right">
           <button class="textbtn" id="backupBtn" title="keep a copy of your log">backup</button>
+          <button class="mode" id="feelBtn" aria-label="sound and touch" title="sound and touch: on">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path class="cone" d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/><path class="wave" d="M15.2 9.2a4 4 0 0 1 0 5.6M17.8 6.8a7.6 7.6 0 0 1 0 10.4"/><path class="slash" d="M4.5 4.5l15 15"/></svg>
+          </button>
           <button class="mode" aria-label="toggle night mode" title="night mode">
             <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 3.4a8.8 8.8 0 1 0 5.4 14.9 7.2 7.2 0 0 1-5.4-14.9z"/></svg>
             <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.4M12 19v2.4M2.6 12H5M19 12h2.4M5.4 5.4l1.7 1.7M16.9 16.9l1.7 1.7M5.4 18.6l1.7-1.7M16.9 7.1l1.7-1.7"/></svg>
@@ -179,6 +182,9 @@
       <p class="day-note" id="dayNote"></p>
     </div>
   </aside>
+
+  <!-- an invisible strip on the left edge: drag it to the right to go back to the days -->
+  <div class="edge" id="edge" aria-hidden="true"></div>
 
 </div>
 

@@ -9,7 +9,7 @@ with the same washi / sumi / hanko design language as tangocheck. No build step,
 | --- | --- |
 | data 数 | hours spent, topics worked |
 | gym 鍛 | session (push, pull, legs+abs, rest), diet adhered, supplements adhered |
-| japanese 語 | anki vocab studied, lesson today, input/output today |
+| japanese 語 | anki vocab studied, lesson today, input/output today, studied (optional note) |
 | piano 音 | session today, worked on |
 | sleep 眠 | ready to sleep by 2am |
 
@@ -24,9 +24,13 @@ Everything saves as you tap. A part counts as logged once all its yes/no and num
   (or everything answered with nothing done), partial is anything between. The streak is the run of perfect days
   that reaches today.
 - **what makes a stroke green:** data 5+ hours (amber under 5, none at 0); gym all three of session (rest counts),
-  diet, supplements (amber for any one or two); japanese all three of anki over 50, lesson, input/output (amber for any
-  one or two, and anki of 50 or less caps it at amber); piano and sleep are yes (green) or no (none).
+  diet, supplements (amber for any one or two); japanese all three of anki 50 or more, lesson, input/output (amber for any
+  one or two, and anki under 50 caps it at amber); piano and sleep are yes (green) or no (none).
 - **the day rolls over at 5am**, not midnight, because you sleep around 2am. Logging at 1:30am still counts for the day before.
+- **sound and touch:** wooden toks on taps, a page-turn swish, a chime when a part is done, a stamp and bell when the day is
+  complete, sparkles when the streak grows. The speaker button in the header turns sound and haptics off together. iOS mutes
+  sounds with the ring/silent switch. Haptics need iOS 17.4 or later.
+- **going back:** drag in from the left edge, or tap "days".
 - days that haven't come yet are locked. Past days can be filled in later.
 
 ## Put it on your iPhone

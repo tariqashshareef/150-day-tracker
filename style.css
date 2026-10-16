@@ -84,7 +84,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--sumi) 38%, transparent); background-clip: content-box; }
 
 /* ---------- the spread ---------- */
-.spread { display: grid; grid-template-columns: minmax(0, 1fr) 520px; height: 100vh; height: 100dvh; }
+.spread { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) 520px; height: 100vh; height: 100dvh; }
 .page { position: relative; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .left .scroll { padding: 24px 46px calc(48px + var(--sab)) 66px; }
@@ -342,10 +342,11 @@ body.stamping .stamp { animation: stamp-down .7s var(--ink-ease) both; }
 /* ---------- a narrow window: the day slides over the days ---------- */
 @media (max-width: 1120px) {
   .spread { grid-template-columns: minmax(0, 1fr); }
-  .right { position: fixed; z-index: 5; inset: 0 0 0 auto; width: min(520px, 100%); transform: translateX(105%); }
+  .right { position: absolute; z-index: 5; inset: 0 0 0 auto; width: min(520px, 100%); transform: translateX(105%); }
   .ready .right { transition: transform .9s var(--ink-ease); }
   body.has-day .right { transform: none; box-shadow: -30px 0 60px color-mix(in srgb, var(--sumi) 14%, transparent); }
   .back { display: inline-flex; }
+  body.has-day .edge { display: block; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
@@ -416,14 +417,63 @@ html.switching *, html.switching *::before, html.switching *::after { transition
   -webkit-background-clip: text; background-clip: text; filter: url(#kin) drop-shadow(0 0 3px rgba(227, 182, 75, .3));
   animation: sheen 8s linear infinite; }
 @keyframes sheen { to { background-position: 240% 0; } }
-/* a few small glints, only on and around the number */
-.glint { position: absolute; inset: 0; pointer-events: none; }
+
+/* ---------- text boxes: make sure iOS treats them as plain editable text ---------- */
+input, textarea { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; touch-action: manipulation; }
+
+/* ---------- underlines: a brush-shaped bar that blooms from its middle with a little spring ---------- */
+:root { --brush: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10' preserveAspectRatio='none'%3E%3Cpath d='M0 6.2C2 4.4 6 3.2 13 3.5S27 2.6 40 3S62 2.2 76 3S93 3.2 100 5.3C99 6.6 96 7.4 90 7.5S72 8.2 58 7.9S36 8.5 24 8S6 8.2 0 6.2Z'/%3E%3C/svg%3E"); }
+.chip::after, .stat::after { border-radius: 0; filter: none; background: var(--c, var(--sumi));
+  -webkit-mask: var(--brush) 0 0 / 100% 100% no-repeat; mask: var(--brush) 0 0 / 100% 100% no-repeat;
+  opacity: 0; transform: scale(.15, .5); transform-origin: 50% 60%; transition: transform .2s ease-in, opacity .16s ease-in; }
+.chip::after { left: 6px; right: 6px; bottom: 5px; height: 9px; }
+.stat::after { left: -2px; right: -2px; bottom: 1px; height: 9px; background: var(--sumi); }
+.chip[aria-pressed="true"]::after, .stat.on::after { filter: none; opacity: 1; transform: none;
+  transition: transform .6s cubic-bezier(.25, 1.9, .4, 1), opacity .1s ease-out; }
+.chip { transition: color .4s var(--ink-ease), transform .18s ease-out; }
+.chip:active, .cell:active, .step:active { transform: scale(.93); }
+.stat:active { transform: scale(.95); }
+
+/* ---------- the streak's gold leaf: loose glints that drift around the number ---------- */
+.glint { position: absolute; inset: -8px -16px -8px -16px; pointer-events: none; }
 .streak:not([data-on]) .glint { display: none; }
 .glint em { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
-  background: radial-gradient(circle at 50% 50%, #fffbe0, #f0c24a 60%, #b8862a); }
-.glint .star { clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); opacity: 0;
-  animation: twinkle 3.6s ease-in-out var(--d) infinite; }
-.glint .flake { clip-path: polygon(8% 12%, 62% 0, 100% 38%, 78% 100%, 14% 82%); opacity: .8; transform: rotate(var(--r));
-  animation: drift 6s ease-in-out var(--d) infinite; }
-@keyframes twinkle { 0%, 60%, 100% { opacity: 0; transform: scale(.2) rotate(0); } 78% { opacity: .95; transform: scale(1) rotate(45deg); } }
-@keyframes drift { 50% { transform: rotate(calc(var(--r) + 25deg)); opacity: .4; } }
+  background: radial-gradient(circle at 50% 50%, #fffbe0, #f0c24a 60%, #b8862a); opacity: 0; will-change: transform, opacity; }
+.glint .star { clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  animation: twinkle var(--p) ease-in-out var(--d) infinite; }
+.glint .flake { clip-path: polygon(8% 12%, 62% 0, 100% 38%, 78% 100%, 14% 82%);
+  animation: fall var(--p) ease-in-out var(--d) infinite; }
+@keyframes twinkle {
+  0% { opacity: 0; transform: translate(0, 0) scale(.1) rotate(0); }
+  25% { opacity: 1; transform: translate(calc(var(--dx) * .35), calc(var(--dy) * .35)) scale(1) rotate(35deg); }
+  45% { opacity: .35; transform: translate(calc(var(--dx) * .7), calc(var(--dy) * .7)) scale(.5) rotate(70deg); }
+  62% { opacity: .95; transform: translate(var(--dx), var(--dy)) scale(.85) rotate(110deg); }
+  100% { opacity: 0; transform: translate(calc(var(--dx) * 1.4), calc(var(--dy) * 1.4)) scale(.1) rotate(160deg); }
+}
+@keyframes fall {
+  0% { opacity: 0; transform: translate(0, -4px) rotate(var(--r)); }
+  18% { opacity: .9; }
+  70% { opacity: .6; transform: translate(var(--dx), calc(var(--dy) * .8)) rotate(calc(var(--r) + 140deg)); }
+  100% { opacity: 0; transform: translate(calc(var(--dx) * 1.3), var(--dy)) rotate(calc(var(--r) + 230deg)); }
+}
+
+/* ---------- the speaker button ---------- */
+#feelBtn .cone { fill: currentColor; }
+#feelBtn .wave, #feelBtn .slash { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; transition: opacity .4s var(--ink-ease); }
+#feelBtn .slash { opacity: 0; }
+#feelBtn[data-off] .wave { opacity: 0; }
+#feelBtn[data-off] .slash { opacity: 1; }
+#feelBtn[data-off] { color: var(--sumi-3); }
+
+/* ---------- swiping back to the days ---------- */
+.edge { display: none; position: absolute; left: 0; top: calc(56px + var(--sat)); bottom: 0; width: 28px; z-index: 7; touch-action: none; }
+
+/* ---------- little moments of feedback ---------- */
+.sec.pop .sec-kanji { animation: kpop .7s cubic-bezier(.3, 1.6, .5, 1); transform-origin: 50% 50%; }
+@keyframes kpop { 0% { transform: scale(.82); } 45% { transform: scale(1.22); } 100% { transform: scale(1); } }
+.num.bump { animation: bump .24s ease-out; }
+@keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
+.stnum.pop { animation: numpop .7s cubic-bezier(.3, 1.6, .5, 1); transform-origin: 0 60%; }
+@keyframes numpop { 0% { transform: scale(1); } 35% { transform: scale(1.4); } 100% { transform: scale(1); } }
+body.stamping .hero-wrap { animation: thud .5s var(--ink-ease) .34s; }
+@keyframes thud { 0% { transform: translateY(0); } 25% { transform: translateY(3px); } 55% { transform: translateY(-1px); } 100% { transform: translateY(0); } }

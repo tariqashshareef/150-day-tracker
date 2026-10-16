@@ -66,9 +66,9 @@
     <!-- gold leaf: torn edges, flecks where the foil didn't take -->
     <filter id="kin" x="-15%" y="-15%" width="130%" height="130%">
       <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="9" result="w"/>
-      <feDisplacementMap in="SourceGraphic" in2="w" scale="3" xChannelSelector="R" yChannelSelector="G" result="rough"/>
+      <feDisplacementMap in="SourceGraphic" in2="w" scale="1.6" xChannelSelector="R" yChannelSelector="G" result="rough"/>
       <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="4" result="g"/>
-      <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -9 6.1" result="flecks"/>
+      <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -9 6.9" result="flecks"/>
       <feComposite in="rough" in2="flecks" operator="in"/>
     </filter>
     <!-- a worn hanko: wobbly edge, and the odd spot where the ink didn't take -->
@@ -116,7 +116,6 @@
         <div class="score-text">
           <span class="label" id="verdictLabel"></span>
           <b id="verdict"></b>
-          <span class="sub" id="subline"></span>
           <nav class="stats" id="stats" aria-label="focus one thing">
             <button class="stat" data-focus="data"><span class="l">data</span></button>
             <button class="stat" data-focus="gym"><span class="l">gym</span></button>
@@ -137,7 +136,7 @@
           <div class="t" style="--c: var(--high)"><b id="tPerfect">0</b><span><i></i>perfect</span></div>
           <div class="t" style="--c: var(--mid)"><b id="tPartial">0</b><span><i></i>partial</span></div>
           <div class="t" style="--c: var(--low)"><b id="tNone">0</b><span><i></i>none</span></div>
-          <div class="t streak" id="streakBox" style="--c: #d4a437"><b id="tStreak">0</b><span><i></i>streak</span><div class="glint" id="glint" aria-hidden="true"></div></div>
+          <div class="t streak" id="streakBox"><div class="stnum"><b id="tStreak">0</b><div class="glint" id="glint" aria-hidden="true"></div></div><span><i></i>streak</span></div>
         </div>
         <dl class="facts" id="facts" hidden></dl>
       </div>
@@ -162,10 +161,6 @@
         </button>
         <button class="icon-btn" id="nextDay" aria-label="next day" title="next day">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-        </button>
-        <button class="mode" aria-label="toggle night mode" title="night mode">
-          <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 3.4a8.8 8.8 0 1 0 5.4 14.9 7.2 7.2 0 0 1-5.4-14.9z"/></svg>
-          <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.4M12 19v2.4M2.6 12H5M19 12h2.4M5.4 5.4l1.7 1.7M16.9 16.9l1.7 1.7M5.4 18.6l1.7-1.7M16.9 7.1l1.7-1.7"/></svg>
         </button>
       </div>
     </div>

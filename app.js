@@ -56,28 +56,26 @@ let today = todayStr();
 const has = (e, k) => e[k] !== undefined && e[k] !== null;
 const DOMAINS = [
   { id: "data",  name: "data",     ch: "数", yomi: "すう",   keys: ["hours"],
-    score: (e) => (e.hours > 0 ? 1 : 0) },
+    tone: (e) => (e.hours >= 5 ? "high" : e.hours > 0 ? "mid" : "low") },
   { id: "gym",   name: "gym",      ch: "鍛", yomi: "たん",   keys: ["gym", "diet", "supps"],
-    score: (e) => ((e.diet ? 1 : 0) + (e.supps ? 1 : 0)) / 2 },
+    tone: (e) => { const n = 1 + (e.diet ? 1 : 0) + (e.supps ? 1 : 0); return n === 3 ? "high" : "mid"; } },   // any session counts, rest included
   { id: "jp",    name: "japanese", ch: "語", yomi: "ご",     keys: ["anki", "lesson", "io"],
-    score: (e) => ((e.anki > 0 ? 1 : 0) + (e.lesson ? 1 : 0) + (e.io ? 1 : 0)) / 3 },
+    tone: (e) => { const n = (e.anki > 0 ? 1 : 0) + (e.lesson ? 1 : 0) + (e.io ? 1 : 0); return n === 0 ? "low" : n === 3 && e.anki > 50 ? "high" : "mid"; } },
   { id: "piano", name: "piano",    ch: "音", yomi: "おと",   keys: ["piano"],
-    score: (e) => (e.piano ? 1 : 0) },
+    tone: (e) => (e.piano ? "high" : "low") },
   { id: "sleep", name: "sleep",    ch: "眠", yomi: "ねむり", keys: ["sleep"],
-    score: (e) => (e.sleep ? 1 : 0) },
+    tone: (e) => (e.sleep ? "high" : "low") },
 ];
 
-const WEIGHT_UNIT = "lb";
 const FORM = [
   { d: "data", fields: [
     { k: "hours", t: "num", label: "hours spent?", unit: "h", step: 0.5, max: 24, dec: true },
-    { k: "topics", t: "text", label: "worked on?", ph: "projects, resume, certs..." },
+    { k: "topics", t: "text", label: "worked on?", ph: "projects, resume, certs, apps..." },
   ] },
   { d: "gym", fields: [
     { k: "gym", t: "pick", label: "session today?", opts: [["push", "push"], ["pull", "pull"], ["legs", "legs+abs"], ["rest", "rest"]] },
     { k: "diet", t: "yn", label: "adhered to diet?" },
     { k: "supps", t: "yn", label: "adhered to supplements?" },
-    { k: "weight", t: "num", label: "bodyweight?", unit: WEIGHT_UNIT, step: 0.5, max: 700, dec: true },
   ] },
   { d: "jp", fields: [
     { k: "anki", t: "num", label: "anki vocab studied?", unit: "", step: 10, max: 9999, dec: false },
@@ -98,10 +96,10 @@ const FIELD = Object.fromEntries(FORM.flatMap((s) => s.fields).map((f) => [f.k, 
 function dstate(e, d) {
   const answered = d.keys.filter((k) => has(e, k)).length;
   const complete = answered === d.keys.length;
-  let tone = "none", score = null;
-  if (complete) { score = d.score(e); tone = score >= 1 ? "high" : score >= 0.5 ? "mid" : "low"; }
+  let tone = "none";
+  if (complete) tone = d.tone(e);   // high, mid, or low (nothing)
   else if (answered) tone = "part";
-  return { answered, total: d.keys.length, complete, tone, score };
+  return { answered, total: d.keys.length, complete, tone };
 }
 
 function statusOf(date) {
@@ -259,18 +257,16 @@ function aggregate() {
   const a = {
     tn, last, complete: 0, perfect: 0, part: 0, none: 0, upcoming: 0,
     hours: 0, hoursDays: 0, bestHours: 0,
-    gym: { push: 0, pull: 0, legs: 0, rest: 0 }, diet: [0, 0], supps: [0, 0], weights: [],
+    gym: { push: 0, pull: 0, legs: 0, rest: 0 }, diet: [0, 0], supps: [0, 0],
     anki: 0, ankiDays: 0, bestAnki: 0, lesson: [0, 0], io: [0, 0],
-    piano: [0, 0], sleep: [0, 0], topics: new Map(), pieces: new Map(), streak: 0, best: 0,
+    piano: [0, 0], sleep: [0, 0], topics: new Map(), pieces: new Map(), streak: 0,
   };
   const perfectAt = [];
-  let lastCounted = last;
-  // a part with nothing in it, or answered with a flat zero, is empty
-  const empty = (p) => p.tone === "none" || (p.complete && p.score === 0);
+  // a part with nothing in it, or answered with nothing done, is empty
+  const empty = (p) => p.tone === "none" || p.tone === "low";
   for (let n = 1; n <= TOTAL; n++) {
     const date = dateOf(n), e = db.entries[date], E = e || {};
     if (n > last && !(TEST_ANY_DAY && e)) { a.upcoming++; continue; }   // test mode: days logged ahead of time still count
-    lastCounted = Math.max(lastCounted, n);
     const st = statusOf(date);
     // whole days: perfect is all five parts fully green; none is a day with nothing in it; partial is everything in between
     const perfect = st.per.every((p) => p.tone === "high");
@@ -282,62 +278,52 @@ function aggregate() {
     if (has(E, "hours")) { a.hours += E.hours; if (E.hours > 0) a.hoursDays++; a.bestHours = Math.max(a.bestHours, E.hours); }
     if (E.gym) a.gym[E.gym]++;
     tally(a.diet, E.diet); tally(a.supps, E.supps);
-    if (has(E, "weight")) a.weights.push(E.weight);
     if (has(E, "anki")) { a.anki += E.anki; if (E.anki > 0) a.ankiDays++; a.bestAnki = Math.max(a.bestAnki, E.anki); }
     tally(a.lesson, E.lesson); tally(a.io, E.io);
     tally(a.piano, E.piano); tally(a.sleep, E.sleep);
     bump(a.topics, E.topics); bump(a.pieces, E.pianoNote);
   }
-  let i = lastCounted;
-  if (tn >= 1 && tn <= TOTAL && i === tn && !perfectAt[i]) i--;  // today isn't over: it can't break the streak yet
+  // the streak is the run of perfect days that reaches the current day (today may still be in progress)
+  let i = clamp(tn, 1, TOTAL);
+  if (i === tn && !perfectAt[i]) i--;
   while (i >= 1 && perfectAt[i]) { a.streak++; i--; }
-  let cur = 0;
-  for (let n = 1; n <= lastCounted; n++) { cur = perfectAt[n] ? cur + 1 : 0; a.best = Math.max(a.best, cur); }
   return a;
 }
 
 function factRows(a, focus) {
   const of = ([y, n]) => (n ? `${y} <small>of ${n}</small>` : "–");
   const days = (n) => `${n} <small>${n === 1 ? "day" : "days"}</small>`;
-  const list = (map) => { const t = mostUsed(map, 3); return t.length ? esc(t.join(", ")) : "–"; };
+  const note = (arr) => `${pct(arr)} <small>${arr[1] ? `· ${arr[0]} of ${arr[1]}` : ""}</small>`;
   switch (focus) {
     case "data": return [
-      ["total", `${fmtH(a.hours)} <small>hours</small>`],
+      ["total hours worked", `${fmtH(a.hours)} <small>hours</small>`],
       ["days worked", `${a.hoursDays} <small>of ${a.last}</small>`],
       ["average, on days worked", a.hoursDays ? `${fmtH(a.hours / a.hoursDays)} <small>hours</small>` : "–"],
       ["longest day", a.bestHours ? `${fmtH(a.bestHours)} <small>hours</small>` : "–"],
-      ["most worked on", list(a.topics)],
     ];
     case "gym": {
       const g = a.gym, lifts = g.push + g.pull + g.legs;
       return [
-        ["lifting days", days(lifts)],
-        ["push · pull · legs+abs", `${g.push} · ${g.pull} · ${g.legs}`],
+        ["lift days", days(lifts)],
+        ["p · p · l+a", `${g.push} · ${g.pull} · ${g.legs}`],
         ["rest days", days(g.rest)],
-        ["diet", `${pct(a.diet)} <small>${a.diet[1] ? `· ${a.diet[0]} of ${a.diet[1]}` : ""}</small>`],
-        ["supplements", `${pct(a.supps)} <small>${a.supps[1] ? `· ${a.supps[0]} of ${a.supps[1]}` : ""}</small>`],
-        ...(a.weights.length ? [
-          ["bodyweight, latest", `${fmtH(a.weights[a.weights.length - 1])} <small>${WEIGHT_UNIT}</small>`],
-          ["change since first", `${a.weights.length > 1 ? (a.weights[a.weights.length - 1] >= a.weights[0] ? "+" : "") + fmtH(a.weights[a.weights.length - 1] - a.weights[0]) : "–"} <small>${a.weights.length > 1 ? WEIGHT_UNIT : ""}</small>`],
-        ] : []),
+        ["diet adherence", note(a.diet)],
+        ["supplement adherence", note(a.supps)],
       ];
     }
     case "jp": return [
-      ["words studied", `${a.anki.toLocaleString("en-US")}`],
-      ["days on anki", `${a.ankiDays} <small>of ${a.last}</small>`],
+      ["vocab studied", `${a.anki.toLocaleString("en-US")}`],
       ["average, on days studied", a.ankiDays ? `${Math.round(a.anki / a.ankiDays)} <small>words</small>` : "–"],
-      ["best day", a.bestAnki ? `${a.bestAnki} <small>words</small>` : "–"],
-      ["lesson", `${pct(a.lesson)} <small>of days</small>`],
+      ["most studied in a day", a.bestAnki ? `${a.bestAnki} <small>words</small>` : "–"],
+      ["lessons", `${pct(a.lesson)} <small>of days</small>`],
       ["input/output", `${pct(a.io)} <small>of days</small>`],
     ];
     case "piano": return [
-      ["days played", of(a.piano)],
-      ["share of days", pct(a.piano)],
-      ["most worked on", list(a.pieces)],
+      ["days practiced", of(a.piano)],
     ];
     case "sleep": return [
-      ["ready by 2am", of(a.sleep)],
-      ["share of nights", pct(a.sleep)],
+      ["nights ready by 2am", of(a.sleep)],
+      ["% of nights", pct(a.sleep)],
     ];
     default: return [];
   }
@@ -374,23 +360,21 @@ let ensoLen = 0;
 function paintSummary() {
   const a = aggregate();
   ensoLen = ensoLen || $("#ensoArc").getTotalLength();
-  const arc = (frac) => ensoLen * (0.04 + 0.92 * frac);   // the circle is never quite closed, like an enso
-  // the gap stays 1000 (more than the whole circle) so the dash grows without ever splitting into dots mid-transition
-  $("#ensoArc").style.strokeDasharray = `${a.complete ? arc(a.complete / TOTAL) : 0}px 1000px`;
-  $("#ensoTime").style.strokeDasharray = `${a.last ? arc(a.last / TOTAL) : 0}px 1000px`;
+  // linear: exactly as full as the share of days. the round caps reach 6 past each end of the dash, so it is trimmed and shifted to match
+  const len = (n) => ensoLen * clamp(n / TOTAL, 0, 1);
+  $("#ensoArc").style.strokeDasharray = `${Math.max(0.01, len(a.complete) - 12)}px 1000px`;
+  $("#ensoTime").style.strokeDasharray = `${len(a.last)}px 1000px`;
   $("#enso").toggleAttribute("data-empty", !a.complete);
   setNum($("#ensoNum"), a.complete);
 
   // the date being logged, written large like the leaf of a day calendar
   const ld = parse(dateOf(clamp(a.tn, 1, TOTAL)));
   $("#verdictLabel").innerHTML = `<span class="wj">${WEEK_J[ld.getDay()]}</span>${WEEK_E[ld.getDay()]}`;
-  $("#verdict").innerHTML = `<span class="dd">${ld.getDate()}</span><span class="mm">${MON3[ld.getMonth()]}</span>`;
-  $("#subline").textContent = String(ld.getFullYear());
+  $("#verdict").innerHTML = `<span class="dd">${ld.getDate()}</span><span class="mm">${MON3[ld.getMonth()]}</span><span class="yr">${ld.getFullYear()}</span>`;
 
 
   $("#tPerfect").textContent = a.perfect; $("#tPartial").textContent = a.part;
   $("#tNone").textContent = a.none; $("#tStreak").textContent = a.streak;
-  $("#streakBox").title = `best streak: ${a.best}`;
   $("#streakBox").toggleAttribute("data-on", a.streak > 0);
   const seg = { high: a.perfect, mid: a.part, low: a.none, unknown: a.upcoming };
   const label = { high: "perfect", mid: "partial", low: "none", unknown: "still to come" };
@@ -417,11 +401,12 @@ function applyFocus(animate) {
 
 /* sparkles and torn flakes of gold leaf around the streak */
 function buildGlint() {
-  const stars = [[-6, -8, 11, 0], [30, -12, 8, 1.1], [50, 6, 12, 2.1], [18, 30, 7, 0.6], [-8, 20, 7, 1.7], [66, -8, 7, 2.8]];
-  const flakes = [[8, -4, 5, 0.2, 20], [26, 26, 4, 1.3, 70], [44, -10, 4, 2.0, 140], [58, 22, 5, 0.9, 200], [-4, 8, 3, 2.4, 40], [70, 8, 3, 1.6, 100], [36, 38, 3, 0.4, 160]];
+  // positions are percentages of the number's own box
+  const stars = [[-6, 4, 6, 0], [104, 8, 5, 1.2], [100, 92, 6, 2.2], [-4, 96, 5, 0.7]];
+  const flakes = [[30, 16, 3, 0.2, 20], [72, 38, 2.5, 1.3, 70], [46, 80, 3, 2, 140], [84, 70, 2, 0.9, 200], [14, 58, 2, 2.4, 40]];
   $("#glint").innerHTML =
-    stars.map(([x, y, sz, d]) => `<em class="star" style="--x:${x}px;--y:${y}px;--s:${sz}px;--d:${d}s"></em>`).join("") +
-    flakes.map(([x, y, sz, d, r]) => `<em class="flake" style="--x:${x}px;--y:${y}px;--s:${sz}px;--d:${d}s;--r:${r}deg"></em>`).join("");
+    stars.map(([x, y, sz, d]) => `<em class="star" style="--x:${x}%;--y:${y}%;--s:${sz}px;--d:${d}s"></em>`).join("") +
+    flakes.map(([x, y, sz, d, r]) => `<em class="flake" style="--x:${x}%;--y:${y}%;--s:${sz}px;--d:${d}s;--r:${r}deg"></em>`).join("");
 }
 
 /* ----------------------------------------------------------------- the day form */
@@ -737,7 +722,6 @@ $("#exportBtn").addEventListener("click", async () => {
 function clean(e) {
   const out = {};
   if (typeof e.hours === "number" && isFinite(e.hours)) out.hours = clamp(e.hours, 0, 24);
-  if (typeof e.weight === "number" && isFinite(e.weight)) out.weight = clamp(e.weight, 0, 700);
   if (typeof e.anki === "number" && isFinite(e.anki)) out.anki = clamp(Math.round(e.anki), 0, 9999);
   for (const k of ["diet", "supps", "lesson", "io", "piano", "sleep"]) if (typeof e[k] === "boolean") out[k] = e[k];
   if (!("io" in out) && (typeof e.input === "boolean" || typeof e.output === "boolean")) out.io = !!(e.input || e.output);

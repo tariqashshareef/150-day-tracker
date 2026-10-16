@@ -8,7 +8,7 @@ with the same washi / sumi / hanko design language as tangocheck. No build step,
 | part | questions |
 | --- | --- |
 | data 数 | hours spent, topics worked |
-| gym 鍛 | session (push, pull, legs+abs, rest), diet adhered, supplements adhered, bodyweight (optional, in lb) |
+| gym 鍛 | session (push, pull, legs+abs, rest), diet adhered, supplements adhered |
 | japanese 語 | anki vocab studied, lesson today, input/output today |
 | piano 音 | session today, worked on |
 | sleep 眠 | ready to sleep by 2am |
@@ -21,7 +21,11 @@ Everything saves as you tap. A part counts as logged once all its yes/no and num
 - **five strokes per day** in the calendar: data, gym, japanese, piano, sleep. Green is all good, amber some, red none.
   Tap a name (data, gym, ...) to bring one stroke forward and see its numbers.
 - **perfect / partial / none** count whole days: perfect is all five strokes green, none is a day with nothing logged
-  (or everything answered zero), partial is anything between. The streak counts consecutive perfect days.
+  (or everything answered with nothing done), partial is anything between. The streak is the run of perfect days
+  that reaches today.
+- **what makes a stroke green:** data 5+ hours (amber under 5, none at 0); gym all three of session (rest counts),
+  diet, supplements (amber for any one or two); japanese all three of anki over 50, lesson, input/output (amber for any
+  one or two, and anki of 50 or less caps it at amber); piano and sleep are yes (green) or no (none).
 - **the day rolls over at 5am**, not midnight, because you sleep around 2am. Logging at 1:30am still counts for the day before.
 - days that haven't come yet are locked. Past days can be filled in later.
 

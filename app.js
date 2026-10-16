@@ -67,15 +67,17 @@ const DOMAINS = [
     score: (e) => (e.sleep ? 1 : 0) },
 ];
 
+const WEIGHT_UNIT = "lb";
 const FORM = [
   { d: "data", fields: [
     { k: "hours", t: "num", label: "hours spent?", unit: "h", step: 0.5, max: 24, dec: true },
-    { k: "topics", t: "text", label: "worked on?", ph: "topics, tools, projects" },
+    { k: "topics", t: "text", label: "worked on?", ph: "projects, resume, certs..." },
   ] },
   { d: "gym", fields: [
     { k: "gym", t: "pick", label: "session today?", opts: [["push", "push"], ["pull", "pull"], ["legs", "legs+abs"], ["rest", "rest"]] },
     { k: "diet", t: "yn", label: "adhered to diet?" },
     { k: "supps", t: "yn", label: "adhered to supplements?" },
+    { k: "weight", t: "num", label: "bodyweight?", unit: WEIGHT_UNIT, step: 0.5, max: 700, dec: true },
   ] },
   { d: "jp", fields: [
     { k: "anki", t: "num", label: "anki vocab studied?", unit: "", step: 10, max: 9999, dec: false },
@@ -84,7 +86,7 @@ const FORM = [
   ] },
   { d: "piano", fields: [
     { k: "piano", t: "yn", label: "session today?" },
-    { k: "pianoNote", t: "text", label: "worked on?", ph: "what did you work on?" },
+    { k: "pianoNote", t: "text", label: "worked on?", ph: "music theory, sight-reading, practice..." },
   ] },
   { d: "sleep", fields: [
     { k: "sleep", t: "yn", label: "ready to sleep by 2am?" },
@@ -257,34 +259,40 @@ function aggregate() {
   const a = {
     tn, last, complete: 0, perfect: 0, part: 0, none: 0, upcoming: 0,
     hours: 0, hoursDays: 0, bestHours: 0,
-    gym: { push: 0, pull: 0, legs: 0, rest: 0 }, diet: [0, 0], supps: [0, 0],
+    gym: { push: 0, pull: 0, legs: 0, rest: 0 }, diet: [0, 0], supps: [0, 0], weights: [],
     anki: 0, ankiDays: 0, bestAnki: 0, lesson: [0, 0], io: [0, 0],
     piano: [0, 0], sleep: [0, 0], topics: new Map(), pieces: new Map(), streak: 0, best: 0,
   };
-  const flags = [];
+  const perfectAt = [];
+  let lastCounted = last;
+  // a part with nothing in it, or answered with a flat zero, is empty
+  const empty = (p) => p.tone === "none" || (p.complete && p.score === 0);
   for (let n = 1; n <= TOTAL; n++) {
-    if (n > last) { a.upcoming++; continue; }
-    const date = dateOf(n), e = db.entries[date] || {}, st = statusOf(date);
+    const date = dateOf(n), e = db.entries[date], E = e || {};
+    if (n > last && !(TEST_ANY_DAY && e)) { a.upcoming++; continue; }   // test mode: days logged ahead of time still count
+    lastCounted = Math.max(lastCounted, n);
+    const st = statusOf(date);
+    // whole days: perfect is all five parts fully green; none is a day with nothing in it; partial is everything in between
     const perfect = st.per.every((p) => p.tone === "high");
-    flags.push(perfect);
+    perfectAt[n] = perfect;
     if (st.complete) a.complete++;
     if (perfect) a.perfect++;
-    else if (st.touched) a.part++;
-    else if (n < tn) a.none++;
-    else a.upcoming++;
-    if (has(e, "hours")) { a.hours += e.hours; if (e.hours > 0) a.hoursDays++; a.bestHours = Math.max(a.bestHours, e.hours); }
-    if (e.gym) a.gym[e.gym]++;
-    tally(a.diet, e.diet); tally(a.supps, e.supps);
-    if (has(e, "anki")) { a.anki += e.anki; if (e.anki > 0) a.ankiDays++; a.bestAnki = Math.max(a.bestAnki, e.anki); }
-    tally(a.lesson, e.lesson); tally(a.io, e.io);
-    tally(a.piano, e.piano); tally(a.sleep, e.sleep);
-    bump(a.topics, e.topics); bump(a.pieces, e.pianoNote);
+    else if (st.per.every(empty)) { if (st.touched || n < tn) a.none++; else a.upcoming++; }
+    else a.part++;
+    if (has(E, "hours")) { a.hours += E.hours; if (E.hours > 0) a.hoursDays++; a.bestHours = Math.max(a.bestHours, E.hours); }
+    if (E.gym) a.gym[E.gym]++;
+    tally(a.diet, E.diet); tally(a.supps, E.supps);
+    if (has(E, "weight")) a.weights.push(E.weight);
+    if (has(E, "anki")) { a.anki += E.anki; if (E.anki > 0) a.ankiDays++; a.bestAnki = Math.max(a.bestAnki, E.anki); }
+    tally(a.lesson, E.lesson); tally(a.io, E.io);
+    tally(a.piano, E.piano); tally(a.sleep, E.sleep);
+    bump(a.topics, E.topics); bump(a.pieces, E.pianoNote);
   }
-  let i = flags.length - 1;
-  if (tn >= 1 && tn <= TOTAL && !flags[i]) i--;  // today isn't over: it can't break the streak yet
-  while (i >= 0 && flags[i]) { a.streak++; i--; }
+  let i = lastCounted;
+  if (tn >= 1 && tn <= TOTAL && i === tn && !perfectAt[i]) i--;  // today isn't over: it can't break the streak yet
+  while (i >= 1 && perfectAt[i]) { a.streak++; i--; }
   let cur = 0;
-  for (const f of flags) { cur = f ? cur + 1 : 0; a.best = Math.max(a.best, cur); }
+  for (let n = 1; n <= lastCounted; n++) { cur = perfectAt[n] ? cur + 1 : 0; a.best = Math.max(a.best, cur); }
   return a;
 }
 
@@ -308,6 +316,10 @@ function factRows(a, focus) {
         ["rest days", days(g.rest)],
         ["diet", `${pct(a.diet)} <small>${a.diet[1] ? `· ${a.diet[0]} of ${a.diet[1]}` : ""}</small>`],
         ["supplements", `${pct(a.supps)} <small>${a.supps[1] ? `· ${a.supps[0]} of ${a.supps[1]}` : ""}</small>`],
+        ...(a.weights.length ? [
+          ["bodyweight, latest", `${fmtH(a.weights[a.weights.length - 1])} <small>${WEIGHT_UNIT}</small>`],
+          ["change since first", `${a.weights.length > 1 ? (a.weights[a.weights.length - 1] >= a.weights[0] ? "+" : "") + fmtH(a.weights[a.weights.length - 1] - a.weights[0]) : "–"} <small>${a.weights.length > 1 ? WEIGHT_UNIT : ""}</small>`],
+        ] : []),
       ];
     }
     case "jp": return [
@@ -333,7 +345,8 @@ function factRows(a, focus) {
 
 function paintFacts(animate) {
   const d = DOMAINS.find((x) => x.id === state.focus);
-  $("#factsLabel").textContent = d ? d.name : "tally";
+  $("#factsLabel").textContent = d ? d.name : "";
+  $("#factsLabel").hidden = !d;
   const box = $("#facts");
   $("#tally").hidden = !!d;
   box.hidden = !d;
@@ -368,32 +381,17 @@ function paintSummary() {
   $("#enso").toggleAttribute("data-empty", !a.complete);
   setNum($("#ensoNum"), a.complete);
 
-  if (a.tn < 1) {
-    $("#verdictLabel").textContent = "begins";
-    $("#verdict").textContent = a.tn === 0 ? "tomorrow" : `in ${1 - a.tn} days`;
-    $("#subline").textContent = longDate(START);
-  } else if (a.tn > TOTAL) {
-    $("#verdictLabel").textContent = "finished";
-    $("#verdict").textContent = `${a.complete} of ${TOTAL}`;
-    $("#subline").textContent = "days logged";
-  } else {
-    $("#verdictLabel").textContent = "today";
-    $("#verdict").textContent = `day ${a.tn}`;
-    $("#subline").textContent = `${a.complete} logged · ${a.tn === TOTAL ? "last day" : `${TOTAL - a.tn} left`}`;
-  }
+  // the date being logged, written large like the leaf of a day calendar
+  const ld = parse(dateOf(clamp(a.tn, 1, TOTAL)));
+  $("#verdictLabel").innerHTML = `<span class="wj">${WEEK_J[ld.getDay()]}</span>${WEEK_E[ld.getDay()]}`;
+  $("#verdict").innerHTML = `<span class="dd">${ld.getDate()}</span><span class="mm">${MON3[ld.getMonth()]}</span>`;
+  $("#subline").textContent = String(ld.getFullYear());
 
-  const nums = {
-    data: a.hours >= 100 ? String(Math.round(a.hours)) : fmtH(a.hours),
-    gym: String(a.gym.push + a.gym.pull + a.gym.legs),
-    jp: compact(a.anki),
-    piano: String(a.piano[0]),
-    sleep: String(a.sleep[0]),
-  };
-  $$(".stat").forEach((s) => { $(".n", s).textContent = nums[s.dataset.focus]; });
 
   $("#tPerfect").textContent = a.perfect; $("#tPartial").textContent = a.part;
   $("#tNone").textContent = a.none; $("#tStreak").textContent = a.streak;
-  $("#tStreak").parentElement.title = `best streak: ${a.best}`;
+  $("#streakBox").title = `best streak: ${a.best}`;
+  $("#streakBox").toggleAttribute("data-on", a.streak > 0);
   const seg = { high: a.perfect, mid: a.part, low: a.none, unknown: a.upcoming };
   const label = { high: "perfect", mid: "partial", low: "none", unknown: "still to come" };
   for (const t of Object.keys(seg)) { const el = $(`#coverage [data-tone="${t}"]`); el.style.flexGrow = seg[t]; el.title = `${seg[t]} ${label[t]}`; }
@@ -415,6 +413,15 @@ function applyFocus(animate) {
   const m = $("#months");
   if (state.focus) m.dataset.focus = state.focus; else delete m.dataset.focus;
   paintFacts(animate);
+}
+
+/* sparkles and torn flakes of gold leaf around the streak */
+function buildGlint() {
+  const stars = [[-6, -8, 11, 0], [30, -12, 8, 1.1], [50, 6, 12, 2.1], [18, 30, 7, 0.6], [-8, 20, 7, 1.7], [66, -8, 7, 2.8]];
+  const flakes = [[8, -4, 5, 0.2, 20], [26, 26, 4, 1.3, 70], [44, -10, 4, 2.0, 140], [58, 22, 5, 0.9, 200], [-4, 8, 3, 2.4, 40], [70, 8, 3, 1.6, 100], [36, 38, 3, 0.4, 160]];
+  $("#glint").innerHTML =
+    stars.map(([x, y, sz, d]) => `<em class="star" style="--x:${x}px;--y:${y}px;--s:${sz}px;--d:${d}s"></em>`).join("") +
+    flakes.map(([x, y, sz, d, r]) => `<em class="flake" style="--x:${x}px;--y:${y}px;--s:${sz}px;--d:${d}s;--r:${r}deg"></em>`).join("");
 }
 
 /* ----------------------------------------------------------------- the day form */
@@ -612,7 +619,6 @@ function drawHero() {
   document.body.classList.remove("stamping");
   if (statusOf(state.sel).complete) stampIn();
 }
-$("#replay").addEventListener("click", drawHero);
 
 function paintDay() {
   const date = state.sel, n = dayNo(date), d = parse(date);
@@ -731,6 +737,7 @@ $("#exportBtn").addEventListener("click", async () => {
 function clean(e) {
   const out = {};
   if (typeof e.hours === "number" && isFinite(e.hours)) out.hours = clamp(e.hours, 0, 24);
+  if (typeof e.weight === "number" && isFinite(e.weight)) out.weight = clamp(e.weight, 0, 700);
   if (typeof e.anki === "number" && isFinite(e.anki)) out.anki = clamp(Math.round(e.anki), 0, 9999);
   for (const k of ["diet", "supps", "lesson", "io", "piano", "sleep"]) if (typeof e[k] === "boolean") out[k] = e[k];
   if (!("io" in out) && (typeof e.input === "boolean" || typeof e.output === "boolean")) out.io = !!(e.input || e.output);
@@ -772,6 +779,7 @@ function boot() {
   probe.remove();
   buildMonths();
   buildForm();
+  buildGlint();
   const n = clamp(dayNo(today), 1, TOTAL);
   state.sel = dateOf(n);
   paintAllCells();

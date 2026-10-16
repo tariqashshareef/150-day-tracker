@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="150 days">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="color-scheme" content="light dark">
 <title>150 days 百五十日</title>
 <script>
@@ -63,6 +63,14 @@
       <feTurbulence type="fractalNoise" baseFrequency="0.025 0.18" numOctaves="2" seed="8" result="warp"/>
       <feDisplacementMap in="SourceGraphic" in2="warp" scale="2.4" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
+    <!-- gold leaf: torn edges, flecks where the foil didn't take -->
+    <filter id="kin" x="-15%" y="-15%" width="130%" height="130%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="9" result="w"/>
+      <feDisplacementMap in="SourceGraphic" in2="w" scale="3" xChannelSelector="R" yChannelSelector="G" result="rough"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="4" result="g"/>
+      <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -9 6.1" result="flecks"/>
+      <feComposite in="rough" in2="flecks" operator="in"/>
+    </filter>
     <!-- a worn hanko: wobbly edge, and the odd spot where the ink didn't take -->
     <filter id="seal" x="-10%" y="-10%" width="120%" height="120%">
       <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="2" result="warp"/>
@@ -85,7 +93,7 @@
     <div class="scroll" id="leftScroll">
 
       <header class="top">
-        <div class="brand"><span class="seal">百</span><b>150 days</b></div>
+        <div class="brand"><span class="seal"><span>日</span></span><b>150 days</b></div>
         <div class="top-right">
           <button class="textbtn" id="backupBtn" title="keep a copy of your log">backup</button>
           <button class="mode" aria-label="toggle night mode" title="night mode">
@@ -106,15 +114,15 @@
           <div class="enso-num"><b id="ensoNum">0</b><i>/150</i></div>
         </div>
         <div class="score-text">
-          <span class="label" id="verdictLabel">today</span>
-          <b id="verdict">day 1</b>
+          <span class="label" id="verdictLabel"></span>
+          <b id="verdict"></b>
           <span class="sub" id="subline"></span>
           <nav class="stats" id="stats" aria-label="focus one thing">
-            <button class="stat" data-focus="data"><span class="n">0</span><span class="l">data</span></button>
-            <button class="stat" data-focus="gym"><span class="n">0</span><span class="l">gym</span></button>
-            <button class="stat" data-focus="jp"><span class="n">0</span><span class="l">japanese</span></button>
-            <button class="stat" data-focus="piano"><span class="n">0</span><span class="l">piano</span></button>
-            <button class="stat" data-focus="sleep"><span class="n">0</span><span class="l">sleep</span></button>
+            <button class="stat" data-focus="data"><span class="l">data</span></button>
+            <button class="stat" data-focus="gym"><span class="l">gym</span></button>
+            <button class="stat" data-focus="jp"><span class="l">japanese</span></button>
+            <button class="stat" data-focus="piano"><span class="l">piano</span></button>
+            <button class="stat" data-focus="sleep"><span class="l">sleep</span></button>
           </nav>
         </div>
       </div>
@@ -124,19 +132,18 @@
       </div>
 
       <div class="tally-wrap">
-        <span class="label" id="factsLabel">tally</span>
+        <span class="label" id="factsLabel" hidden></span>
         <div class="tally" id="tally">
           <div class="t" style="--c: var(--high)"><b id="tPerfect">0</b><span><i></i>perfect</span></div>
           <div class="t" style="--c: var(--mid)"><b id="tPartial">0</b><span><i></i>partial</span></div>
           <div class="t" style="--c: var(--low)"><b id="tNone">0</b><span><i></i>none</span></div>
-          <div class="t" style="--c: var(--sumi)"><b id="tStreak">0</b><span><i></i>streak</span></div>
+          <div class="t streak" id="streakBox" style="--c: #d4a437"><b id="tStreak">0</b><span><i></i>streak</span><div class="glint" id="glint" aria-hidden="true"></div></div>
         </div>
         <dl class="facts" id="facts" hidden></dl>
       </div>
 
       <div class="months" id="months"></div>
 
-      <p class="credit">type: shippori mincho (ofl). stroke order: kanjivg (cc by-sa 3.0).</p>
     </div>
   </section>
 
@@ -169,7 +176,6 @@
         <div class="hero" id="hero"></div>
         <div class="hero-foot">
           <span id="dateLine"></span>
-          <button class="textbtn small" id="replay" title="draw it again">replay</button>
         </div>
         <div class="stamp" id="stamp" title="every part of this day is logged"><span>済</span></div>
       </div>

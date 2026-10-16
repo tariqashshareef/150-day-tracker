@@ -17,6 +17,7 @@ const params = new URLSearchParams(location.search);
 const SIM = /^\d{4}-\d{2}-\d{2}$/.test(params.get("today") || "") ? params.get("today") : null; // ?today=2026-11-12 pretends it is that day
 const KEY = "d150.v1" + (SIM ? ".sim" : "");
 const THEME_KEY = "d150.theme";
+const BUILD = "oct 16 16:59";   // shown in the backup sheet, so you can tell which version the phone is running
 
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -220,21 +221,24 @@ function hiss(d, f0, f1, { gain = 0.05, at = 0 } = {}) {
   src.connect(f).connect(g).connect(c.destination);
   src.start(t); src.stop(t + d + 0.03);
 }
-// a soft felt-mallet tone: a round sine with a quiet overtone, no pitch sweep, through a low-pass so it never gets sharp
-function soft(f, d = 0.18, gain = 0.1, at = 0) {
+// a wooden tok, like a temple block: a round sine body with a faint downward chirp, a woody overtone and a tiny click, softened by a low-pass
+function wood(f, d = 0.14, gain = 0.1, at = 0) {
   const c = feel.on && ac();
   if (!c) return;
-  const t = c.currentTime + at, g = c.createGain(), lp = c.createBiquadFilter();
-  lp.type = "lowpass"; lp.frequency.value = 1400; lp.Q.value = 0.3;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(gain, t + 0.016);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-  lp.connect(g).connect(c.destination);
-  [[f, 1], [f * 2, 0.16]].forEach(([fr, amp]) => {
-    const o = c.createOscillator(), og = c.createGain();
-    o.type = "sine"; o.frequency.value = fr; og.gain.value = amp;
-    o.connect(og).connect(lp); o.start(t); o.stop(t + d + 0.03);
-  });
+  const t = c.currentTime + at, out = c.createGain(), lp = c.createBiquadFilter();
+  lp.type = "lowpass"; lp.frequency.value = 3000; lp.Q.value = 0.5;
+  out.gain.setValueAtTime(0.0001, t);
+  out.gain.exponentialRampToValueAtTime(gain, t + 0.003);
+  out.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  out.connect(lp); lp.connect(c.destination);
+  const body = c.createOscillator();
+  body.type = "sine"; body.frequency.setValueAtTime(f * 1.07, t); body.frequency.exponentialRampToValueAtTime(f, t + 0.035);
+  const over = c.createOscillator(), og = c.createGain();
+  over.type = "sine"; over.frequency.value = f * 2.45;
+  og.gain.setValueAtTime(0.28, t); og.gain.exponentialRampToValueAtTime(0.0001, t + d * 0.45);
+  body.connect(out); over.connect(og).connect(out);
+  body.start(t); body.stop(t + d + 0.03); over.start(t); over.stop(t + d * 0.5 + 0.03);
+  hiss(0.012, 1500, 1900, { gain: gain * 0.45, at });
 }
 
 // one bell voice: the note, a fifth above it at half strength and its octave at a third, ringing together
@@ -244,24 +248,22 @@ const bell = (f, d, gain, at = 0) => {
   blip(f * 2, f * 2, d * 0.55, { gain: gain * 0.35, at });
 };
 const sfx = {
-  yes()    { soft(392, 0.2, 0.1); },      // G4
-  no()     { soft(294, 0.22, 0.1); },     // D4: the same felt tap, lower
-  pick()   { soft(349.2, 0.2, 0.09); },
-  clear()  { soft(262, 0.14, 0.06); },
-  up()     { soft(523.3, 0.12, 0.055); },
-  down()   { soft(440, 0.12, 0.055); },
-  tick()   { soft(698.5, 0.09, 0.045); },
+  yes()    { wood(587.3, 0.14, 0.12); },    // D5   the toks sit on a Japanese pentatonic scale (D E F A B-flat), so repeats don't drone
+  no()     { wood(349.2, 0.16, 0.12); },    // F4
+  pick()   { wood(466.2, 0.14, 0.11); },    // B-flat 4
+  clear()  { wood(293.7, 0.1, 0.08); },     // D4
+  up()     { wood(659.3, 0.09, 0.07); },    // E5
+  down()   { wood(440, 0.09, 0.07); },      // A4
+  tick()   { wood(880, 0.07, 0.06); },      // A5
   swish()  { hiss(0.24, 450, 2000, { gain: 0.04 }); },                                                           // a page turning
   part()   { blip(784, 784, 0.4, { gain: 0.08 }); blip(1175, 1175, 0.55, { gain: 0.07, at: 0.09 }); },          // a part of the day is done
   wrap()   { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, 0.55, 0.07, i * 0.09));                                  // C E G C, rising, each note struck like the closing bell
              blip(150, 48, 0.26, { gain: 0.3, at: 0.3 }); hiss(0.08, 300, 90, { gain: 0.1, at: 0.3 });                                        // the hanko lands on the last note
              bell(1046.5, 1.1, 0.07, 0.3); },
   wrapPerfect() {
-    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, 0.55, 0.07, i * 0.09));                       // the same C E G C as an ordinary day
-    blip(150, 48, 0.3, { gain: 0.34, at: 0.3 }); hiss(0.1, 300, 80, { gain: 0.12, at: 0.3 });               // the hanko lands
-    bell(1046.5, 1.5, 0.08, 0.3);
-    bell(1318.5, 2, 0.08, 0.58);                                                                              // and the last note rings one step higher: E6
-    bell(523.25, 2.2, 0.04, 0.58); bell(659.25, 2.2, 0.035, 0.58); bell(783.99, 2.2, 0.035, 0.58);          // over a soft C major chord
+    [523.25, 659.25, 783.99, 2093].forEach((f, i) => bell(f, 0.55, 0.07, i * 0.09));                    // C E G, then the last note an octave higher (C7 where an ordinary day has C6)
+    blip(150, 48, 0.26, { gain: 0.3, at: 0.3 }); hiss(0.08, 300, 90, { gain: 0.1, at: 0.3 });           // the hanko lands, as on any day
+    bell(2093, 1.1, 0.07, 0.3);
   },
   streak() { [1319, 1568, 1976, 2637].forEach((f, i) => blip(f, f, 0.45, { gain: 0.045, at: i * 0.07 })); },     // a run of sparkles
 };
@@ -1015,7 +1017,21 @@ function backupInfo() {
   const n = Object.keys(db.entries).length;
   $("#backupInfo").textContent = `${n} ${n === 1 ? "day" : "days"} logged · last export ${db.exported ? shortDate(ymd(new Date(db.exported))) : "never"}`;
 }
-function openBackup() { cue("swish"); backupInfo(); $("#backupMsg").textContent = ""; $("#backupSheet").hidden = false; }
+const inset = (side) => {
+  const p = document.createElement("div");
+  p.style.cssText = `position:fixed;visibility:hidden;padding-${side}:env(safe-area-inset-${side},0px)`;
+  document.body.append(p);
+  const v = parseFloat(getComputedStyle(p)[`padding${side[0].toUpperCase()}${side.slice(1)}`]) || 0;
+  p.remove();
+  return v;
+};
+function showBuild() {
+  const vv = window.visualViewport, page = $(".spread").getBoundingClientRect(), scroller = $("#leftScroll").getBoundingClientRect();
+  $("#buildInfo").textContent = `build ${BUILD} · ${document.documentElement.classList.contains("standalone") ? "installed" : "in browser"} · window ${innerWidth}×${innerHeight}` +
+    `${vv ? ` · visual ${Math.round(vv.height)}` : ""} · screen ${screen.width}×${screen.height} · insets ${inset("top")}/${inset("bottom")} · ` +
+    `app ${getComputedStyle(document.documentElement).getPropertyValue("--app-h").trim()} · page ends ${Math.round(page.bottom)} · list ends ${Math.round(scroller.bottom)}`;
+}
+function openBackup() { cue("swish"); backupInfo(); showBuild(); $("#backupMsg").textContent = ""; $("#backupSheet").hidden = false; }
 function closeBackup() {
   const sheet = $("#backupSheet");
   if (sheet.hidden) return;

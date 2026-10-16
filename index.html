@@ -49,6 +49,11 @@
       <feComposite in="rough" in2="dry" operator="in" result="body"/>
       <feMerge><feMergeNode in="halo"/><feMergeNode in="body"/></feMerge>
     </filter>
+    <!-- the same ink, cheap: used while a stroke is being drawn, then swapped for the full one once it dries -->
+    <filter id="sumi-lite" x="-6%" y="-8%" width="112%" height="116%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="1" seed="5" result="warp"/>
+      <feDisplacementMap in="SourceGraphic" in2="warp" scale="3.6" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
     <filter id="sumi-big" x="-10%" y="-10%" width="120%" height="120%">
       <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="3" result="warp"/>
       <feDisplacementMap in="SourceGraphic" in2="warp" scale="9" xChannelSelector="R" yChannelSelector="G" result="rough"/>
@@ -211,9 +216,8 @@
 <!-- the day is wrapped up: a calendar leaf drops in and the hanko lands on it -->
 <div class="wrap" id="wrap" hidden aria-hidden="true">
   <div class="wrap-flash"></div>
-  <div class="wrap-rain" id="wrapRain"></div>
+  <canvas class="wrap-canvas" id="wrapCanvas"></canvas>
   <div class="wrap-stage" id="wrapStage">
-    <svg class="wrap-enso" viewBox="0 0 200 200" aria-hidden="true"><g filter="url(#kin)"><path class="wrap-enso-path" d="M100 24A76 76 0 1 1 99.9 24"/></g></svg>
     <div class="leaf">
       <div class="leaf-sheen"></div>
       <div class="leaf-top" id="leafTop"></div>
@@ -223,7 +227,6 @@
     </div>
     <div class="wrap-fx" id="wrapFx"></div>
     <div class="wrap-seal" id="wrapSeal"><span>済</span></div>
-    <div class="wrap-seal wrap-seal2" id="wrapSeal2"><span>満</span></div>
   </div>
 </div>
 

@@ -220,6 +220,23 @@ function hiss(d, f0, f1, { gain = 0.05, at = 0 } = {}) {
   src.connect(f).connect(g).connect(c.destination);
   src.start(t); src.stop(t + d + 0.03);
 }
+// a soft felt-mallet tone: a round sine with a quiet overtone, no pitch sweep, through a low-pass so it never gets sharp
+function soft(f, d = 0.18, gain = 0.1, at = 0) {
+  const c = feel.on && ac();
+  if (!c) return;
+  const t = c.currentTime + at, g = c.createGain(), lp = c.createBiquadFilter();
+  lp.type = "lowpass"; lp.frequency.value = 1400; lp.Q.value = 0.3;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(gain, t + 0.016);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  lp.connect(g).connect(c.destination);
+  [[f, 1], [f * 2, 0.16]].forEach(([fr, amp]) => {
+    const o = c.createOscillator(), og = c.createGain();
+    o.type = "sine"; o.frequency.value = fr; og.gain.value = amp;
+    o.connect(og).connect(lp); o.start(t); o.stop(t + d + 0.03);
+  });
+}
+
 // one bell voice: the note, a fifth above it at half strength and its octave at a third, ringing together
 const bell = (f, d, gain, at = 0) => {
   blip(f, f, d, { gain, at });
@@ -227,25 +244,24 @@ const bell = (f, d, gain, at = 0) => {
   blip(f * 2, f * 2, d * 0.55, { gain: gain * 0.35, at });
 };
 const sfx = {
-  yes()    { blip(660, 400, 0.11, { type: "triangle", gain: 0.14 }); blip(1320, 900, 0.05, { gain: 0.03 }); },   // a bright wooden tok
-  no()     { blip(360, 220, 0.13, { type: "triangle", gain: 0.13 }); },                                          // the same tok, lower
-  pick()   { blip(520, 330, 0.1, { type: "triangle", gain: 0.13 }); },
-  clear()  { blip(300, 200, 0.07, { gain: 0.06 }); },
-  up()     { blip(900, 1050, 0.05, { type: "triangle", gain: 0.07 }); },                                          // bamboo ticks, rising and falling
-  down()   { blip(760, 600, 0.05, { type: "triangle", gain: 0.07 }); },
-  tick()   { blip(1100, 900, 0.04, { type: "triangle", gain: 0.06 }); },
-  swish()  { hiss(0.22, 600, 2800, { gain: 0.05 }); },                                                           // a page turning
+  yes()    { soft(392, 0.2, 0.1); },      // G4
+  no()     { soft(294, 0.22, 0.1); },     // D4: the same felt tap, lower
+  pick()   { soft(349.2, 0.2, 0.09); },
+  clear()  { soft(262, 0.14, 0.06); },
+  up()     { soft(523.3, 0.12, 0.055); },
+  down()   { soft(440, 0.12, 0.055); },
+  tick()   { soft(698.5, 0.09, 0.045); },
+  swish()  { hiss(0.24, 450, 2000, { gain: 0.04 }); },                                                           // a page turning
   part()   { blip(784, 784, 0.4, { gain: 0.08 }); blip(1175, 1175, 0.55, { gain: 0.07, at: 0.09 }); },          // a part of the day is done
   wrap()   { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, 0.55, 0.07, i * 0.09));                                  // C E G C, rising, each note struck like the closing bell
              blip(150, 48, 0.26, { gain: 0.3, at: 0.3 }); hiss(0.08, 300, 90, { gain: 0.1, at: 0.3 });                                        // the hanko lands on the last note
              bell(1046.5, 1.1, 0.07, 0.3); },
   wrapPerfect() {
-    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, 0.55, 0.07, i * 0.09));                       // the same C E G C
-    blip(150, 48, 0.3, { gain: 0.34, at: 0.3 }); hiss(0.1, 300, 80, { gain: 0.12, at: 0.3 });               // 済 lands
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, 0.55, 0.07, i * 0.09));                       // the same C E G C as an ordinary day
+    blip(150, 48, 0.3, { gain: 0.34, at: 0.3 }); hiss(0.1, 300, 80, { gain: 0.12, at: 0.3 });               // the hanko lands
     bell(1046.5, 1.5, 0.08, 0.3);
-    blip(120, 45, 0.28, { gain: 0.3, at: 0.85 }); bell(1568, 1.3, 0.06, 0.85);                              // 満 lands a moment later
-    [1319, 1568, 2093, 2637, 3136].forEach((f, i) => blip(f, f, 0.5, { gain: 0.045, at: 1.1 + i * 0.07}));  // a sparkling run
-    bell(523.25, 2, 0.05, 1.1); bell(783.99, 2, 0.04, 1.1); bell(1046.5, 2, 0.04, 1.1);                    // and a full chord to ring out
+    bell(1318.5, 2, 0.08, 0.58);                                                                              // and the last note rings one step higher: E6
+    bell(523.25, 2.2, 0.04, 0.58); bell(659.25, 2.2, 0.035, 0.58); bell(783.99, 2.2, 0.035, 0.58);          // over a soft C major chord
   },
   streak() { [1319, 1568, 1976, 2637].forEach((f, i) => blip(f, f, 0.45, { gain: 0.045, at: i * 0.07 })); },     // a run of sparkles
 };
@@ -635,6 +651,7 @@ let wrapTimers = [], wrapFly = null;
 function wrapEnd(scrollUp) {
   wrapTimers.forEach(clearTimeout); wrapTimers = [];
   if (wrapFly) { wrapFly.cancel(); wrapFly = null; }
+  fxStop();
   const w = $("#wrap");
   w.hidden = true; w.className = "wrap";
   document.body.classList.remove("celebrating");
@@ -642,6 +659,68 @@ function wrapEnd(scrollUp) {
   setTimeout(() => document.body.classList.remove("settle"), 500);
   if (scrollUp) $("#dayScroll").scrollTo({ top: 0, behavior: "smooth" });
 }
+
+/* flakes of gold and vermilion, all drawn on one canvas (a single layer instead of a hundred and fifty) */
+const fx = { cv: null, cx: null, parts: [], raf: 0, last: 0, t: 0, w: 0, h: 0 };
+const FLAKE = [[0.08, 0.12], [0.62, 0], [1, 0.38], [0.78, 1], [0.14, 0.82]];   // an irregular torn flake, in unit size
+function fxStart() {
+  fx.cv = fx.cv || $("#wrapCanvas");
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  fx.w = innerWidth; fx.h = Math.max(innerHeight, parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--app-h")) || 0);
+  fx.cv.width = Math.round(fx.w * dpr); fx.cv.height = Math.round(fx.h * dpr);
+  fx.cx = fx.cv.getContext("2d");
+  fx.cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  fx.parts = []; fx.t = 0; fx.last = performance.now();
+  cancelAnimationFrame(fx.raf);
+  fx.raf = requestAnimationFrame(fxLoop);
+}
+function fxStop() {
+  cancelAnimationFrame(fx.raf);
+  fx.parts = [];
+  if (fx.cx) fx.cx.clearRect(0, 0, fx.w, fx.h);
+}
+function fxPalette() {
+  const shu = getComputedStyle(document.documentElement).getPropertyValue("--shu").trim() || "#a11d22";
+  return ["#f0c24a", "#e3b64b", "#d9a42f", "#fff2b0", "#c8932a", shu];
+}
+function fxBurst(x, y, n) {
+  const pal = fxPalette();
+  for (let i = 0; i < n; i++) {
+    const ang = Math.random() * Math.PI * 2, sp = 140 + Math.random() * 460;
+    fx.parts.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 120, g: 760, drag: 1.6, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 12,
+      s: 4 + Math.random() * 7, c: pal[Math.floor(Math.random() * pal.length)], life: 1.1 + Math.random() * 0.8, age: 0, t0: 0, sway: 0 });
+  }
+}
+function fxRain(n) {
+  const pal = fxPalette();
+  for (let i = 0; i < n; i++) {
+    fx.parts.push({ x: Math.random() * fx.w, y: -20 - Math.random() * 60, vx: 0, vy: 90 + Math.random() * 130, g: 40, drag: 0.1, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 6,
+      s: 5 + Math.random() * 7, c: pal[Math.floor(Math.random() * pal.length)], life: 3.6, age: 0, t0: fx.t + 0.15 + Math.random() * 1.5, sway: 1.5 + Math.random() * 2.5 });
+  }
+}
+function fxLoop(now) {
+  const dt = Math.min(0.034, (now - fx.last) / 1000);
+  fx.last = now; fx.t += dt;
+  const cx = fx.cx;
+  cx.clearRect(0, 0, fx.w, fx.h);
+  fx.parts = fx.parts.filter((p) => p.age < p.life);
+  for (const p of fx.parts) {
+    if (fx.t < p.t0) continue;
+    p.age += dt;
+    p.vy += p.g * dt;
+    p.vx *= 1 - Math.min(1, p.drag * dt); p.vy *= 1 - Math.min(1, p.drag * dt * 0.4);
+    p.x += p.vx * dt + (p.sway ? Math.sin(p.age * p.sway * 2) * 22 * dt : 0); p.y += p.vy * dt; p.rot += p.vr * dt;
+    const fade = p.age > p.life * 0.7 ? 1 - (p.age - p.life * 0.7) / (p.life * 0.3) : 1;
+    cx.globalAlpha = Math.max(0, Math.min(1, p.age * 10) * fade);
+    cx.save(); cx.translate(p.x, p.y); cx.rotate(p.rot); cx.fillStyle = p.c;
+    cx.beginPath();
+    FLAKE.forEach(([u, v], i) => { const px = (u - 0.5) * p.s * 1.6, py = (v - 0.5) * p.s * 1.6; if (i) cx.lineTo(px, py); else cx.moveTo(px, py); });
+    cx.closePath(); cx.fill(); cx.restore();
+  }
+  cx.globalAlpha = 1;
+  if (fx.parts.length || fx.t < 0.8) fx.raf = requestAnimationFrame(fxLoop);
+}
+
 function celebrate() {
   const date = state.sel, now = Date.now();
   if (ceremonyAt[date] && now - ceremonyAt[date] < 60000) { stampIn(); return; }   // this one was just celebrated
@@ -654,18 +733,8 @@ function celebrate() {
   $("#leafDay").textContent = `day ${n} of ${TOTAL}`;
   const inRow = date === dateOf(clamp(a.tn, 1, TOTAL)) && a.streak > 1;
   $("#leafNote").innerHTML = perfect
-    ? `<span class="gold big">perfect day</span>${inRow ? `<span class="gold">${a.streak} in a row</span>` : ""}`
+    ? `<span class="gold big">perfect</span>${inRow ? `<span class="gold">${a.streak} in a row</span>` : ""}`
     : "logged";
-  const colors = ["var(--shu)", "#e3b64b", "#d9a42f", "var(--shu)"];
-  $("#wrapFx").innerHTML = Array.from({ length: perfect ? 70 : 30 }, () => {
-    const ang = Math.random() * Math.PI * 2, dist = 60 + Math.random() * (perfect ? 190 : 110);
-    return `<i style="--s:${(4 + Math.random() * (perfect ? 8 : 6)).toFixed(1)}px;--c:${colors[Math.floor(Math.random() * colors.length)]};--tx:${(Math.cos(ang) * dist).toFixed(0)}px;` +
-      `--ty:${(Math.sin(ang) * dist + 40).toFixed(0)}px;--r:${Math.floor(Math.random() * 360)}deg;--d:${(Math.random() * 0.14).toFixed(2)}s"></i>`;
-  }).join("");
-  const rain = ["#f0c24a", "#e3b64b", "#d9a42f", "#fff2b0", "#c8932a", "var(--shu)"];
-  $("#wrapRain").innerHTML = perfect ? Array.from({ length: 90 }, () =>
-    `<i style="--x:${(Math.random() * 100).toFixed(1)}%;--s:${(5 + Math.random() * 7).toFixed(1)}px;--c:${rain[Math.floor(Math.random() * rain.length)]};` +
-    `--d:${(Math.random() * 1.5).toFixed(2)}s;--t:${(2.4 + Math.random() * 1.8).toFixed(2)}s;--sw:${(Math.random() * 100 - 50).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg"></i>`).join("") : "";
   const w = $("#wrap");
   wrapEnd(false);
   document.body.classList.remove("settle");
@@ -673,8 +742,14 @@ function celebrate() {
   if (perfect) w.classList.add("perfect");
   document.body.classList.add("celebrating");
   void w.offsetWidth;
+  fxStart();
   w.classList.add("go");
   cue(perfect ? "wrapPerfect" : "wrap", perfect ? 9 : 5);
+  wrapTimers.push(setTimeout(() => {   // the hanko has landed: flakes burst from it, and on a perfect day more rain from the top
+    const r = $("#wrapSeal").getBoundingClientRect();
+    fxBurst(r.left + r.width / 2, r.top + r.height / 2, perfect ? 90 : 34);
+    if (perfect) fxRain(80);
+  }, 300));
   const hold = perfect ? 4400 : 2300;
   wrapTimers.push(setTimeout(() => { w.classList.add("lift"); $("#dayScroll").scrollTo({ top: 0, behavior: "smooth" }); }, hold));
   wrapTimers.push(setTimeout(() => {
@@ -710,6 +785,8 @@ function paintSugg(k) {
 }
 
 function paintFields() {
+  form.classList.add("quiet");   // chips take their saved state without drawing their underlines
+  setTimeout(() => form.classList.remove("quiet"), 90);
   const e = entry();
   for (const [k, el] of fieldEls) {
     const t = el.dataset.t;
@@ -797,6 +874,13 @@ form.addEventListener("pointerup", (e) => {
 form.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches(".num")) e.target.blur(); });
 
 /* ----------------------------------------------------------------- the day page */
+
+/* once every stroke of a drawing has finished, the ink dries: the cheap filter used while drawing is swapped for the full one */
+document.addEventListener("animationend", (e) => {
+  if (e.animationName !== "draw" && e.animationName !== "soak-text") return;
+  const g = e.target.closest && e.target.closest(".ink");
+  if (g && g.getAnimations({ subtree: true }).every((a) => a.playState !== "running")) g.classList.add("done");
+}, true);
 
 /* the day number, drawn one stroke at a time from KanjiVG stroke-order data */
 function drawHero() {
@@ -998,7 +1082,20 @@ $("#importFile").addEventListener("change", async (ev) => {
 
 /* ----------------------------------------------------------------- start */
 
+/* on an iPhone the page can come up shorter than the screen, leaving a band at the bottom: size the app to the real screen */
+function fitHeight() {
+  let h = innerHeight;
+  if (document.documentElement.classList.contains("standalone")) {
+    const long = Math.max(screen.width, screen.height), short = Math.min(screen.width, screen.height);
+    h = Math.max(h, innerHeight >= innerWidth ? long : short);
+  }
+  document.documentElement.style.setProperty("--app-h", h + "px");
+}
+addEventListener("resize", fitHeight);
+addEventListener("orientationchange", () => setTimeout(fitHeight, 200));
+
 function boot() {
+  fitHeight();
   setTheme(isDark() ? "dark" : "light", false);
   // does the page run under the phone's status bar? only then does it need the wash behind the bar's text
   const probe = document.createElement("div");

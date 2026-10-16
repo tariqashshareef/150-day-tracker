@@ -239,6 +239,14 @@ const sfx = {
   wrap()   { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, 0.55, 0.07, i * 0.09));                                  // C E G C, rising, each note struck like the closing bell
              blip(150, 48, 0.26, { gain: 0.3, at: 0.3 }); hiss(0.08, 300, 90, { gain: 0.1, at: 0.3 });                                        // the hanko lands on the last note
              bell(1046.5, 1.1, 0.07, 0.3); },
+  wrapPerfect() {
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, 0.55, 0.07, i * 0.09));                       // the same C E G C
+    blip(150, 48, 0.3, { gain: 0.34, at: 0.3 }); hiss(0.1, 300, 80, { gain: 0.12, at: 0.3 });               // 済 lands
+    bell(1046.5, 1.5, 0.08, 0.3);
+    blip(120, 45, 0.28, { gain: 0.3, at: 0.85 }); bell(1568, 1.3, 0.06, 0.85);                              // 満 lands a moment later
+    [1319, 1568, 2093, 2637, 3136].forEach((f, i) => blip(f, f, 0.5, { gain: 0.045, at: 1.1 + i * 0.07}));  // a sparkling run
+    bell(523.25, 2, 0.05, 1.1); bell(783.99, 2, 0.04, 1.1); bell(1046.5, 2, 0.04, 1.1);                    // and a full chord to ring out
+  },
   streak() { [1319, 1568, 1976, 2637].forEach((f, i) => blip(f, f, 0.45, { gain: 0.045, at: i * 0.07 })); },     // a run of sparkles
 };
 const play = (name) => { if (feel.on) { try { sfx[name](); } catch (e) { /* no audio here */ } } };
@@ -366,7 +374,7 @@ const mostUsed = (map, n) => [...map].sort((a, b) => b[1] - a[1]).slice(0, n).ma
 function aggregate() {
   const tn = dayNo(today), last = clamp(tn, 0, TOTAL);
   const a = {
-    tn, last, complete: 0, perfect: 0, part: 0, none: 0, upcoming: 0,
+    tn, last, days: 0, gymDone: 0, complete: 0, perfect: 0, part: 0, none: 0, upcoming: 0,
     hours: 0, hoursDays: 0, bestHours: 0,
     gym: { push: 0, pull: 0, legs: 0, rest: 0 }, diet: [0, 0], supps: [0, 0],
     anki: 0, ankiDays: 0, bestAnki: 0, lesson: [0, 0], io: [0, 0],
@@ -380,6 +388,8 @@ function aggregate() {
     if (n > last && !(TEST_ANY_DAY && e)) { a.upcoming++; continue; }   // test mode: days logged ahead of time still count
     const st = statusOf(date);
     // whole days: perfect is all five parts fully green; none is a day with nothing in it; partial is everything in between
+    a.days++;
+    if (st.per[1].tone === "high") a.gymDone++;   // gym fully done: session, diet and supplements
     const perfect = st.per.every((p) => p.tone === "high");
     perfectAt[n] = perfect;
     if (st.complete) a.complete++;
@@ -402,13 +412,14 @@ function aggregate() {
 }
 
 function factRows(a, focus) {
-  const of = ([y, n]) => (n ? `${y} <small>of ${n}</small>` : "–");
   const days = (n) => `${n} <small>${n === 1 ? "day" : "days"}</small>`;
   const note = (arr) => `${pct(arr)} <small>${arr[1] ? `· ${arr[0]} of ${arr[1]}` : ""}</small>`;
+  // the second row on every page: how many days, as a share of the days so far
+  const share = (label, x, unit) => [label, a.days ? `${Math.round((100 * x) / a.days)}% <small>of ${unit} · ${x} of ${a.days}</small>` : "–"];
   switch (focus) {
     case "data": return [
       ["total hours worked", `${fmtH(a.hours)} <small>hours</small>`],
-      ["days worked", `${a.hoursDays} <small>of ${a.last}</small>`],
+      share("days worked", a.hoursDays, "days"),
       ["average, on days worked", a.hoursDays ? `${fmtH(a.hours / a.hoursDays)} <small>hours</small>` : "–"],
       ["longest day", a.bestHours ? `${fmtH(a.bestHours)} <small>hours</small>` : "–"],
     ];
@@ -416,6 +427,7 @@ function factRows(a, focus) {
       const g = a.gym, lifts = g.push + g.pull + g.legs;
       return [
         ["lift days", days(lifts)],
+        share("days completed", a.gymDone, "days"),
         ["p · p · l+a", `${g.push} · ${g.pull} · ${g.legs}`],
         ["rest days", days(g.rest)],
         ["diet adherence", note(a.diet)],
@@ -423,18 +435,20 @@ function factRows(a, focus) {
       ];
     }
     case "jp": return [
-      ["vocab studied", `${a.anki.toLocaleString("en-US")}`],
+      ["vocab studied", `${a.anki.toLocaleString("en-US")} <small>words</small>`],
+      share("days studied", a.ankiDays, "days"),
       ["average, on days studied", a.ankiDays ? `${Math.round(a.anki / a.ankiDays)} <small>words</small>` : "–"],
       ["most studied in a day", a.bestAnki ? `${a.bestAnki} <small>words</small>` : "–"],
       ["lessons", `${pct(a.lesson)} <small>of days</small>`],
       ["input/output", `${pct(a.io)} <small>of days</small>`],
     ];
     case "piano": return [
-      ["days practiced", of(a.piano)],
+      ["days practiced", days(a.piano[0])],
+      share("practiced", a.piano[0], "days"),
     ];
     case "sleep": return [
-      ["nights ready by 2am", of(a.sleep)],
-      ["% of nights", pct(a.sleep)],
+      ["nights on time", `${a.sleep[0]} <small>${a.sleep[0] === 1 ? "night" : "nights"}</small>`],
+      share("on time", a.sleep[0], "nights"),
     ];
     default: return [];
   }
@@ -632,29 +646,37 @@ function celebrate() {
   const date = state.sel, now = Date.now();
   if (ceremonyAt[date] && now - ceremonyAt[date] < 60000) { stampIn(); return; }   // this one was just celebrated
   ceremonyAt[date] = now;
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { stampIn(); cue("wrap", 2); return; }
-  const d = parse(date), n = dayNo(date), a = aggregate();
   const perfect = statusOf(date).per.every((p) => p.tone === "high");
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { stampIn(); cue(perfect ? "wrapPerfect" : "wrap", 2); return; }
+  const d = parse(date), n = dayNo(date), a = aggregate();
   $("#leafTop").innerHTML = `<span class="wj">${WEEK_J[d.getDay()]}</span>${WEEK_E[d.getDay()]}`;
   $("#leafDate").innerHTML = `<b class="dd">${d.getDate()}</b><span class="mm">${MON3[d.getMonth()]}</span><span class="yr">${d.getFullYear()}</span>`;
   $("#leafDay").textContent = `day ${n} of ${TOTAL}`;
   const inRow = date === dateOf(clamp(a.tn, 1, TOTAL)) && a.streak > 1;
-  $("#leafNote").innerHTML = perfect ? (inRow ? `a perfect day<br><span class="gold">${a.streak} in a row</span>` : "a perfect day") : "all logged";
+  $("#leafNote").innerHTML = perfect
+    ? `<span class="gold big">perfect day</span>${inRow ? `<span class="gold">${a.streak} in a row</span>` : ""}`
+    : "logged";
   const colors = ["var(--shu)", "#e3b64b", "#d9a42f", "var(--shu)"];
-  $("#wrapFx").innerHTML = Array.from({ length: 30 }, () => {
-    const ang = Math.random() * Math.PI * 2, dist = 60 + Math.random() * 110;
-    return `<i style="--s:${(4 + Math.random() * 6).toFixed(1)}px;--c:${colors[Math.floor(Math.random() * colors.length)]};--tx:${(Math.cos(ang) * dist).toFixed(0)}px;` +
-      `--ty:${(Math.sin(ang) * dist + 40).toFixed(0)}px;--r:${Math.floor(Math.random() * 360)}deg;--d:${(Math.random() * 0.12).toFixed(2)}s"></i>`;
+  $("#wrapFx").innerHTML = Array.from({ length: perfect ? 70 : 30 }, () => {
+    const ang = Math.random() * Math.PI * 2, dist = 60 + Math.random() * (perfect ? 190 : 110);
+    return `<i style="--s:${(4 + Math.random() * (perfect ? 8 : 6)).toFixed(1)}px;--c:${colors[Math.floor(Math.random() * colors.length)]};--tx:${(Math.cos(ang) * dist).toFixed(0)}px;` +
+      `--ty:${(Math.sin(ang) * dist + 40).toFixed(0)}px;--r:${Math.floor(Math.random() * 360)}deg;--d:${(Math.random() * 0.14).toFixed(2)}s"></i>`;
   }).join("");
+  const rain = ["#f0c24a", "#e3b64b", "#d9a42f", "#fff2b0", "#c8932a", "var(--shu)"];
+  $("#wrapRain").innerHTML = perfect ? Array.from({ length: 90 }, () =>
+    `<i style="--x:${(Math.random() * 100).toFixed(1)}%;--s:${(5 + Math.random() * 7).toFixed(1)}px;--c:${rain[Math.floor(Math.random() * rain.length)]};` +
+    `--d:${(Math.random() * 1.5).toFixed(2)}s;--t:${(2.4 + Math.random() * 1.8).toFixed(2)}s;--sw:${(Math.random() * 100 - 50).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg"></i>`).join("") : "";
   const w = $("#wrap");
   wrapEnd(false);
   document.body.classList.remove("settle");
   w.hidden = false;
+  if (perfect) w.classList.add("perfect");
   document.body.classList.add("celebrating");
   void w.offsetWidth;
   w.classList.add("go");
-  cue("wrap", 5);
-  wrapTimers.push(setTimeout(() => { w.classList.add("lift"); $("#dayScroll").scrollTo({ top: 0, behavior: "smooth" }); }, 2300));
+  cue(perfect ? "wrapPerfect" : "wrap", perfect ? 9 : 5);
+  const hold = perfect ? 4400 : 2300;
+  wrapTimers.push(setTimeout(() => { w.classList.add("lift"); $("#dayScroll").scrollTo({ top: 0, behavior: "smooth" }); }, hold));
   wrapTimers.push(setTimeout(() => {
     const seal = $("#wrapSeal"), to = $("#stamp").getBoundingClientRect(), from = seal.getBoundingClientRect();
     const dx = to.left + to.width / 2 - (from.left + from.width / 2), dy = to.top + to.height / 2 - (from.top + from.height / 2);
@@ -663,7 +685,7 @@ function celebrate() {
       [{ transform: "translate(0, 0) scale(1) rotate(-4deg)" }, { transform: `translate(${dx}px, ${dy}px) scale(${to.width / seal.offsetWidth}) rotate(5deg)` }],
       { duration: 540, easing: "cubic-bezier(.5, 0, .2, 1)", fill: "forwards" });
     wrapFly.onfinish = () => wrapEnd(false);
-  }, 2900));
+  }, hold + 600));
 }
 $("#wrap").addEventListener("click", () => { if (!wrapFly) wrapEnd(true); });   // a tap skips it
 

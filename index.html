@@ -210,8 +210,12 @@
 
 <!-- the day is wrapped up: a calendar leaf drops in and the hanko lands on it -->
 <div class="wrap" id="wrap" hidden aria-hidden="true">
+  <div class="wrap-flash"></div>
+  <div class="wrap-rain" id="wrapRain"></div>
   <div class="wrap-stage" id="wrapStage">
+    <svg class="wrap-enso" viewBox="0 0 200 200" aria-hidden="true"><g filter="url(#kin)"><path class="wrap-enso-path" d="M100 24A76 76 0 1 1 99.9 24"/></g></svg>
     <div class="leaf">
+      <div class="leaf-sheen"></div>
       <div class="leaf-top" id="leafTop"></div>
       <div class="leaf-date" id="leafDate"></div>
       <div class="leaf-day" id="leafDay"></div>
@@ -219,6 +223,7 @@
     </div>
     <div class="wrap-fx" id="wrapFx"></div>
     <div class="wrap-seal" id="wrapSeal"><span>済</span></div>
+    <div class="wrap-seal wrap-seal2" id="wrapSeal2"><span>満</span></div>
   </div>
 </div>
 

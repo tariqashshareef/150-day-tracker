@@ -1053,7 +1053,11 @@ $("#exportBtn").addEventListener("click", async () => {
   const file = new File([blob], name, { type: "application/json" });
   const msg = $("#backupMsg");
   try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "150 days" });
+    const cap = window.Capacitor && window.Capacitor.Plugins, FS = cap && cap.Filesystem, SH = cap && cap.Share;
+    if (FS && SH) {   // the native app: write the file, then open the iOS share sheet on it
+      const saved = await FS.writeFile({ path: name, data: JSON.stringify(db, null, 1), directory: "CACHE", encoding: "utf8" });
+      await SH.share({ title: "150 days", url: saved.uri });
+    } else if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "150 days" });
     else {
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob); a.download = name;

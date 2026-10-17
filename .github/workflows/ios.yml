@@ -38,7 +38,7 @@ jobs:
       - name: Create the iOS project
         run: |
           npm init -y > /dev/null
-          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/ios@7 @capacitor/haptics@7 @capacitor/status-bar@7 @capacitor/keyboard@7
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/ios@7 @capacitor/haptics@7 @capacitor/status-bar@7 @capacitor/keyboard@7 @capacitor/share@7 @capacitor/filesystem@7
           cp ios-native/capacitor.config.json capacitor.config.json
           npx cap add ios
           npx cap sync ios

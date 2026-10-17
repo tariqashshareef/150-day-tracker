@@ -166,6 +166,11 @@ const wide = () => matchMedia("(min-width: 1121px)").matches;
 const TEST_ANY_DAY = true;
 const editable = (date) => TEST_ANY_DAY || date <= today;
 
+/* the page never zooms: not by pinching, not by double-tapping, not for any input */
+["gesturestart", "gesturechange", "gestureend"].forEach((t) => document.addEventListener(t, (e) => e.preventDefault(), { passive: false }));
+document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener("dblclick", (e) => e.preventDefault());
+
 /* a quick second tap would zoom the page on iOS. pinching still works. a quick second tap on a button still presses it */
 let lastTap = 0, lastTapX = 0, lastTapY = 0;
 document.addEventListener("touchend", (e) => {
@@ -272,6 +277,7 @@ const play = (name) => { if (feel.on) { try { sfx[name](); } catch (e) { /* no a
 // touch: Android vibrates; on iOS 17.4+ toggling a hidden switch control makes the phone tick
 function hap(n = 1) {
   if (!feel.on) return;
+  if (document.activeElement && document.activeElement.matches && document.activeElement.matches("input, textarea")) return;   // never disturb typing
   try {
     if (navigator.vibrate) { navigator.vibrate(n === 1 ? 8 : [10, 40, 18]); return; }
     if (!feel.label) {
@@ -696,8 +702,8 @@ function fxBurst(x, y, n) {
 function fxRain(n) {
   const pal = fxPalette();
   for (let i = 0; i < n; i++) {
-    fx.parts.push({ x: Math.random() * fx.w, y: -20 - Math.random() * 60, vx: 0, vy: 90 + Math.random() * 130, g: 40, drag: 0.1, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 6,
-      s: 5 + Math.random() * 7, c: pal[Math.floor(Math.random() * pal.length)], life: 3.6, age: 0, t0: fx.t + 0.15 + Math.random() * 1.5, sway: 1.5 + Math.random() * 2.5 });
+    fx.parts.push({ x: Math.random() * fx.w, y: -20 - Math.random() * 60, vx: 0, vy: 170 + Math.random() * 150, g: 120, drag: 0.1, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 9,
+      s: 5 + Math.random() * 7, c: pal[Math.floor(Math.random() * pal.length)], life: 2.5, age: 0, t0: fx.t + 0.1 + Math.random() * 0.9, sway: 2 + Math.random() * 3 });
   }
 }
 function fxLoop(now) {
@@ -752,7 +758,7 @@ function celebrate() {
     fxBurst(r.left + r.width / 2, r.top + r.height / 2, perfect ? 90 : 34);
     if (perfect) fxRain(80);
   }, 300));
-  const hold = perfect ? 4400 : 2300;
+  const hold = perfect ? 3500 : 2300;
   wrapTimers.push(setTimeout(() => { w.classList.add("lift"); $("#dayScroll").scrollTo({ top: 0, behavior: "smooth" }); }, hold));
   wrapTimers.push(setTimeout(() => {
     const seal = $("#wrapSeal"), to = $("#stamp").getBoundingClientRect(), from = seal.getBoundingClientRect();
@@ -1108,6 +1114,24 @@ function fitHeight() {
   document.documentElement.style.setProperty("--app-h", h + "px");
 }
 addEventListener("resize", fitHeight);
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const keyboard = () => {
+    const kb = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+    document.documentElement.style.setProperty("--kb", (kb > 120 ? kb : 0) + "px");
+  };
+  vv.addEventListener("resize", keyboard);
+}
+document.addEventListener("focusin", (e) => {
+  const el = e.target;
+  if (!el.matches || !el.matches("input, textarea")) return;
+  setTimeout(() => {
+    const scroller = el.closest(".scroll");
+    if (!scroller) return;
+    const vv = window.visualViewport, bottom = vv ? vv.offsetTop + vv.height : innerHeight, r = el.getBoundingClientRect();
+    if (r.bottom > bottom - 24) scroller.scrollTop += r.bottom - (bottom - 24);
+  }, 350);
+});
 addEventListener("orientationchange", () => setTimeout(fitHeight, 200));
 
 function boot() {

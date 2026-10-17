@@ -666,7 +666,7 @@ body::before, body::after, .night-air { display: none; }
   opacity: 0; transform: scaleX(1); transform-origin: 100% 50%; will-change: transform; transition: none; }
 .chip::before { left: 3px; right: 3px; bottom: 0; height: 14px; }
 .stat::before { left: -4px; right: -4px; bottom: -3px; height: 14px; --cover: var(--washi); }
-.chip[aria-pressed="true"]::before, .stat.on::before { opacity: 1; transform: scaleX(0); transition: transform .45s linear; }
+.chip[aria-pressed="true"]::before, .stat.on::before { opacity: 1; transform: scaleX(0); transition: transform .3s linear; }
 .quiet .chip::before, .quiet .stat::before { opacity: 0; transition: none !important; }
 
 /* the "p" of "perfect" keeps its tail */
@@ -674,3 +674,5 @@ body::before, body::after, .night-air { display: none; }
 
 /* room under the last line, so the last boxes can be scrolled up above the keyboard */
 .day-note { padding-bottom: calc(240px + var(--sab)); }
+
+html.native .status-wash { display: none !important; }

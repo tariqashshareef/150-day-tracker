@@ -17,6 +17,7 @@
     try { t = localStorage.getItem("d150.theme"); } catch (e) {}
     if (!t && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) t = "dark";
     if (t === "dark") { r.dataset.theme = "dark"; document.querySelector('meta[name="theme-color"]').setAttribute("content", "#121214"); }
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) r.classList.add("native", "standalone");
     if (navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches)) r.classList.add("standalone");
     setTimeout(function () { r.classList.add("show"); }, 3500); // never stay hidden if something goes wrong
   })();

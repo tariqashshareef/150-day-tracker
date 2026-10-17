@@ -1,0 +1,76 @@
+name: build-ios
+
+# Builds the 150 days tracker as a native iPhone app (an unsigned .ipa, to be signed and installed with Sideloadly).
+# Runs when the ios-app branch is pushed, or by hand from the Actions tab.
+on:
+  push:
+    branches: [ios-app]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          pod --version || true
+
+      - name: Gather the web app
+        run: |
+          mkdir -p www
+          cp index.html style.css app.js strokes.js manifest.webmanifest www/
+          cp ./*.png www/
+          cp -R fonts www/fonts
+          ls -la www
+
+      - name: Create the iOS project
+        run: |
+          npm init -y > /dev/null
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/ios@7 @capacitor/haptics@7 @capacitor/status-bar@7 @capacitor/keyboard@7
+          cp ios-native/capacitor.config.json capacitor.config.json
+          npx cap add ios
+          npx cap sync ios
+          bash ios-native/prepare.sh
+
+      - name: Build (unsigned)
+        run: |
+          set -o pipefail
+          if [ -d ios/App/App.xcworkspace ]; then TARGET="-workspace ios/App/App.xcworkspace"; else TARGET="-project ios/App/App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" build \
+            | tee xcodebuild.log | tail -60
+
+      - name: Package the .ipa
+        run: |
+          APP=$(find build/Build/Products -maxdepth 3 -name "App.app" | head -1)
+          echo "app bundle: $APP"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry 150-days.ipa Payload
+          ls -la 150-days.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 150-days-ipa
+          path: 150-days.ipa
+
+      - name: Publish the .ipa as a release download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ios-latest --cleanup-tag -y || true
+          gh release create ios-latest 150-days.ipa --target "$GITHUB_SHA" \
+            --title "150 days, iPhone app (unsigned)" \
+            --notes "Unsigned build for Sideloadly. Built from $GITHUB_SHA."

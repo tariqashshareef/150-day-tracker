@@ -277,6 +277,11 @@ const play = (name) => { if (feel.on) { try { sfx[name](); } catch (e) { /* no a
 function hap(n = 1) {
   if (!feel.on) return;
   if (document.activeElement && document.activeElement.matches && document.activeElement.matches("input, textarea")) return;   // never disturb typing
+  const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;   // the native app's own haptic engine
+  if (H) {
+    try { if (n >= 3) H.notification({ type: "SUCCESS" }); else H.impact({ style: n === 2 ? "MEDIUM" : "LIGHT" }); } catch (e) { /* none */ }
+    return;
+  }
   try {
     if (navigator.vibrate) { navigator.vibrate(n === 1 ? 8 : [10, 40, 18]); return; }
     if (!feel.label) {
@@ -312,6 +317,8 @@ const isDark = () => document.documentElement.dataset.theme === "dark";
 function setTheme(theme, remember = true) {
   document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
   if (remember) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* private window: just don't remember */ } }
+  const SB = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;   // native app: clock and battery in the right colour
+  if (SB) { try { SB.setStyle({ style: isDark() ? "DARK" : "LIGHT" }); } catch (e) { /* none */ } }
   const bar = $('meta[name="theme-color"]');
   if (bar) bar.setAttribute("content", isDark() ? "#121214" : "#f4ede0");
   $$(".mode:not(#feelBtn)").forEach((b) => { b.title = isDark() ? "back to daylight" : "night mode"; });

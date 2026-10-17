@@ -67,3 +67,26 @@ so it never touches the real log. Bump nothing for updates: the service worker t
 - `index.html`, `style.css`, `app.js`: the app. `strokes.js` holds the kanji stroke paths it draws.
 - `sw.js`: offline cache. `manifest.webmanifest` and the `icon*.png` files make it installable.
 - `fonts/`: Shippori Mincho. See `NOTICE.md` for font and stroke-data licenses.
+
+## As a real iPhone app (full screen, normal keyboard)
+
+The web app on the home screen is limited by what iOS gives home-screen web apps (on an iPhone 16 Pro Max the page area is
+62pt shorter than the screen). The same code also builds as a native app, which gets the whole screen and the system keyboard,
+plus real haptics, a status bar that matches the theme, and a native share sheet for backups.
+
+It is built by GitHub (`.github/workflows/ios.yml`, a Capacitor wrapper compiled on a macOS runner) whenever the `ios-app`
+branch is pushed, and published as an unsigned `.ipa`:
+https://github.com/tariqashshareef/150-day-tracker/releases/download/ios-latest/150-days.ipa
+
+Install it from Windows with **Sideloadly**:
+
+1. Install iTunes and iCloud from apple.com (not the Microsoft Store versions), then Sideloadly from sideloadly.io.
+2. Plug the iPhone in and tap Trust.
+3. Drag `150-days.ipa` into Sideloadly, enter your Apple ID, press Start.
+4. On the iPhone: Settings > Privacy & Security > Developer Mode on (then restart), and Settings > General >
+   VPN & Device Management > trust your Apple ID.
+5. A free Apple ID signs the app for **7 days**; repeat step 3 each week (install over the top, your data stays).
+   A paid developer account ($99/year) lasts a year.
+
+The app keeps its log in its own storage, separate from the home-screen web app: **backup > export** in the old one, then
+**backup > import** in the new one. To change the app, edit the files and push to `ios-app`; to see the web version, push `main`.

@@ -17,7 +17,7 @@ const params = new URLSearchParams(location.search);
 const SIM = /^\d{4}-\d{2}-\d{2}$/.test(params.get("today") || "") ? params.get("today") : null; // ?today=2026-11-12 pretends it is that day
 const KEY = "d150.v1" + (SIM ? ".sim" : "");
 const THEME_KEY = "d150.theme";
-const BUILD = "oct 16 16:59";   // shown in the backup sheet, so you can tell which version the phone is running
+const BUILD = "oct 16 21:02";   // shown in the backup sheet, so you can tell which version the phone is running
 
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -168,7 +168,6 @@ const editable = (date) => TEST_ANY_DAY || date <= today;
 
 /* the page never zooms: not by pinching, not by double-tapping, not for any input */
 ["gesturestart", "gesturechange", "gestureend"].forEach((t) => document.addEventListener(t, (e) => e.preventDefault(), { passive: false }));
-document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 document.addEventListener("dblclick", (e) => e.preventDefault());
 
 /* a quick second tap would zoom the page on iOS. pinching still works. a quick second tap on a button still presses it */
@@ -177,7 +176,7 @@ document.addEventListener("touchend", (e) => {
   if (e.touches.length || e.changedTouches.length !== 1) return;
   const t = e.changedTouches[0], quick = e.timeStamp - lastTap < 350 && Math.hypot(t.clientX - lastTapX, t.clientY - lastTapY) < 40;
   lastTap = e.timeStamp; lastTapX = t.clientX; lastTapY = t.clientY;
-  if (!quick || e.target.closest("input, textarea, select")) return;
+  if (!quick || e.target.closest("input, textarea, select, #form, .sheet")) return;
   e.preventDefault();
   const press = e.target.closest("button, label, a, .cell");
   if (press) press.click();
@@ -327,12 +326,12 @@ function switchTheme(next) {
   root.classList.add("switching");
   setTheme(next);
   void veil.offsetWidth;
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  setTimeout(() => {
     root.classList.remove("switching");
     veil.style.transition = "opacity .6s cubic-bezier(.22, .61, .2, 1)";
     veil.style.opacity = "0";
     setTimeout(() => veil.remove(), 750);
-  }));
+  }, 50);
 }
 $$(".mode:not(#feelBtn)").forEach((b) => b.addEventListener("click", () => { cue("tick"); switchTheme(isDark() ? "light" : "dark"); }));
 
@@ -872,13 +871,6 @@ form.addEventListener("focusout", (e) => {
   if (e.target.matches(".num")) e.target.value = has(entry(), k) ? String(entry()[k]) : "";
   else if (e.target.matches("textarea")) paintSugg(k);
 });
-// tapping anywhere on a number row (not on a button) puts the cursor in its box
-form.addEventListener("pointerup", (e) => {
-  const fld = e.target.closest('.fld[data-t="num"]');
-  if (!fld || e.target.closest("button, input")) return;
-  const box = $("input", fld);
-  if (box && !box.disabled) box.focus();
-});
 form.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches(".num")) e.target.blur(); });
 
 /* ----------------------------------------------------------------- the day page */
@@ -1104,34 +1096,11 @@ $("#importFile").addEventListener("change", async (ev) => {
 
 /* ----------------------------------------------------------------- start */
 
-/* on an iPhone the page can come up shorter than the screen, leaving a band at the bottom: size the app to the real screen */
+/* the app is exactly as tall as the page area the browser gives it (on an iPhone that is shorter than the screen) */
 function fitHeight() {
-  let h = innerHeight;
-  if (document.documentElement.classList.contains("standalone")) {
-    const long = Math.max(screen.width, screen.height), short = Math.min(screen.width, screen.height);
-    h = Math.max(h, innerHeight >= innerWidth ? long : short);
-  }
-  document.documentElement.style.setProperty("--app-h", h + "px");
+  document.documentElement.style.setProperty("--app-h", innerHeight + "px");
 }
 addEventListener("resize", fitHeight);
-if (window.visualViewport) {
-  const vv = window.visualViewport;
-  const keyboard = () => {
-    const kb = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
-    document.documentElement.style.setProperty("--kb", (kb > 120 ? kb : 0) + "px");
-  };
-  vv.addEventListener("resize", keyboard);
-}
-document.addEventListener("focusin", (e) => {
-  const el = e.target;
-  if (!el.matches || !el.matches("input, textarea")) return;
-  setTimeout(() => {
-    const scroller = el.closest(".scroll");
-    if (!scroller) return;
-    const vv = window.visualViewport, bottom = vv ? vv.offsetTop + vv.height : innerHeight, r = el.getBoundingClientRect();
-    if (r.bottom > bottom - 24) scroller.scrollTop += r.bottom - (bottom - 24);
-  }, 350);
-});
 addEventListener("orientationchange", () => setTimeout(fitHeight, 200));
 
 function boot() {
@@ -1159,7 +1128,7 @@ function boot() {
   if (!persist()) setStatus("error", "can't save here");
   else setStatus("ok", "saved");
   // stay hidden until the type is in, then settle in; the strokes start drawing once it shows
-  const reveal = () => requestAnimationFrame(() => document.documentElement.classList.add("show"));
+  const reveal = () => setTimeout(() => document.documentElement.classList.add("show"), 30);
   const fonts = document.fonts && document.fonts.load
     ? Promise.all([document.fonts.load('500 16px "Shippori Mincho"'), document.fonts.load('600 16px "Shippori Mincho"')]) : Promise.resolve();
   Promise.race([fonts, new Promise((r) => setTimeout(r, 1500))]).then(reveal, reveal);

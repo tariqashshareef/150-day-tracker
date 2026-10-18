@@ -330,7 +330,7 @@ body.stamping .stamp { animation: stamp-down .7s var(--ink-ease) both; }
 .sheet { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
   background: color-mix(in srgb, var(--washi) 74%, transparent); }
 .sheet[hidden] { display: none; }
-.sheet-card { position: relative; width: min(440px, calc(100vw - 40px)); padding: 30px 34px 26px; background: var(--washi-2);
+.sheet-card { text-align: center; position: relative; width: min(440px, calc(100vw - 40px)); padding: 30px 34px 26px; background: var(--washi-2);
   border: 1px solid var(--hair); border-radius: 4px; box-shadow: 0 30px 70px color-mix(in srgb, var(--sumi) 24%, transparent);
   animation: soak .6s var(--ink-ease) both; }
 .sheet-card h2 { margin: 0 0 8px; font: 600 25px/1.3 var(--mincho); letter-spacing: .04em; }

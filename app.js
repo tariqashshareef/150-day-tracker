@@ -446,30 +446,30 @@ function factRows(a, focus) {
   const S = a.span;   // per question: the days so far that its percentage is out of
   const one = (n, word) => (n === 1 ? word : word + "s");
   const amt = (text, v, word) => `${text} <small>${one(v, word)}</small>`;
-  // "A/B (X%) days": how many of the days so far
-  const ratio = (x, y, unit) => (y ? `${x}/${y} <small>(${pctOf(x, y)}%) ${y === 1 ? unit.slice(0, -1) : unit}</small>` : "–");
-  // "N% (X/Y)": how often, out of the days so far
-  const rate = (x, y) => (y ? `${pctOf(x, y)}% <small>(${x}/${y})</small>` : "–");
+  // "A/B (X% of days)": how many of the days so far
+  const ratio = (x, y, unit) => (y ? `${x}/${y} <small>(${pctOf(x, y)}% of ${unit})</small>` : "–");
+  // "N% (X/Y days)" or "N% (X/Y completed)": how often, out of the days so far
+  const rate = (x, y, tail) => (y ? `${pctOf(x, y)}% <small>(${x}/${y} ${tail === "days" && y === 1 ? "day" : tail})</small>` : "–");
   const avgH = a.hoursDays ? Math.round((a.hours / a.hoursDays) * 10) / 10 : 0;
   const avgW = a.ankiDays ? Math.round(a.anki / a.ankiDays) : 0;
   switch (focus) {
     case "data": return [
       ["days worked", ratio(a.hoursDays, S.hours, "days")],
       ["total hours worked", amt(fmtH(a.hours), Math.round(a.hours * 10) / 10, "hour")],
-      ["average, on days worked", a.hoursDays ? amt(fmtH(avgH), avgH, "hour") : "–"],
+      ["average hrs, on days worked", a.hoursDays ? amt(fmtH(avgH), avgH, "hour") : "–"],
     ];
     case "gym": return [
       ["lift days", ratio(a.lift[0] + a.lift[1] + a.lift[2], a.liftPlan, "days")],
       ["p · p · l+a", a.lift.join(" · ")],
-      ["diet adherence", rate(a.diet, S.diet)],
-      ["supplement adherence", rate(a.supps, S.supps)],
+      ["diet adherence", rate(a.diet, S.diet, "days")],
+      ["supplement adherence", rate(a.supps, S.supps, "days")],
     ];
     case "jp": return [
       ["days studied", ratio(a.ankiDays, S.anki, "days")],
       ["vocab studied", amt(a.anki.toLocaleString("en-US"), a.anki, "word")],
-      ["average, on days studied", a.ankiDays ? amt(String(avgW), avgW, "word") : "–"],
-      ["lessons", rate(a.lesson, S.lesson)],
-      ["input/output", rate(a.io, S.io)],
+      ["avg words, on days studied", a.ankiDays ? amt(String(avgW), avgW, "word") : "–"],
+      ["lessons", rate(a.lesson, S.lesson, "completed")],
+      ["input/output", rate(a.io, S.io, "completed")],
     ];
     case "piano": return [
       ["days practiced", ratio(a.piano, S.piano, "days")],

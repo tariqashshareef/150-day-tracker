@@ -448,8 +448,8 @@ function factRows(a, focus) {
   const amt = (text, v, word) => `${text} <small>${one(v, word)}</small>`;
   // "A/B (X% of days)": how many of the days so far
   const ratio = (x, y, unit) => (y ? `${x}/${y} <small>(${pctOf(x, y)}% of ${unit})</small>` : "–");
-  // "N% (X/Y days)" or "N% (X/Y completed)": how often, out of the days so far
-  const rate = (x, y, tail) => (y ? `${pctOf(x, y)}% <small>(${x}/${y} ${tail === "days" && y === 1 ? "day" : tail})</small>` : "–");
+  // "N% (X/Y days)", "N% (X/Y completed)" or "N% (X/Y sessions)": how often, out of the days so far
+  const rate = (x, y, tail) => (y ? `${pctOf(x, y)}% <small>(${x}/${y} ${y === 1 && tail.endsWith("s") ? tail.slice(0, -1) : tail})</small>` : "–");
   const avgH = a.hoursDays ? Math.round((a.hours / a.hoursDays) * 10) / 10 : 0;
   const avgW = a.ankiDays ? Math.round(a.anki / a.ankiDays) : 0;
   switch (focus) {
@@ -469,7 +469,7 @@ function factRows(a, focus) {
       ["vocab studied", amt(a.anki.toLocaleString("en-US"), a.anki, "word")],
       ["avg words, on days studied", a.ankiDays ? amt(String(avgW), avgW, "word") : "–"],
       ["lessons", rate(a.lesson, S.lesson, "completed")],
-      ["input/output", rate(a.io, S.io, "completed")],
+      ["input/output", rate(a.io, S.io, "sessions")],
     ];
     case "piano": return [
       ["days practiced", ratio(a.piano, S.piano, "days")],
@@ -481,14 +481,43 @@ function factRows(a, focus) {
   }
 }
 
+/* tapping a stat swaps one panel for another of a different height. the layout snaps at once, then the calendar slides to
+   its new place (a transform, so the compositor does it) while the new panel is revealed by a clip on the same timing:
+   nothing is laid out frame by frame. the old panel stays on top as a ghost, fading and clipping away. */
+const SWAP = { duration: 520, easing: "cubic-bezier(.22, .61, .2, 1)" };   // the same curve as --ink-ease
 function paintFacts(animate) {
   const d = DOMAINS.find((x) => x.id === state.focus);
-  $("#tallyWrap").dataset.mode = d ? "facts" : "tally";   // the two panels fold into each other
-  if (!d) return;                                         // the facts stay as they were while they fold away
-  $("#factsLabel").textContent = d.name;
-  const box = $("#facts");
-  if (animate) box.dataset.anim = "1"; else delete box.dataset.anim;
-  box.innerHTML = factRows(aggregate(), state.focus).map(([k, v], i) => `<div style="--i:${i}"><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  const wrap = $("#tallyWrap"), months = $("#months");
+  const mode = d ? "facts" : "tally";   // the two panels take turns
+  const swap = animate && wrap.animate && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let ghost = null, h0 = 0, top0 = 0;
+  if (swap) {
+    $$(".ghost", wrap).forEach((g) => g.remove());
+    months.getAnimations().forEach((an) => an.cancel());
+    h0 = wrap.offsetHeight; top0 = months.getBoundingClientRect().top;
+    ghost = $(wrap.dataset.mode === "facts" ? ".pane-facts" : ".pane-tally", wrap).cloneNode(true);
+    ghost.classList.add("ghost");
+    ghost.querySelectorAll("[id]").forEach((e) => e.removeAttribute("id"));
+    ghost.querySelectorAll("[data-anim]").forEach((e) => e.removeAttribute("data-anim"));   // the ghost shows the old rows as they were
+  }
+  wrap.dataset.mode = mode;
+  if (d) {
+    $("#factsLabel").textContent = d.name;
+    const box = $("#facts");
+    if (animate) box.dataset.anim = "1"; else delete box.dataset.anim;
+    box.innerHTML = factRows(aggregate(), state.focus).map(([k, v], i) => `<div style="--i:${i}"><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  }
+  if (!swap) return;
+  wrap.append(ghost);
+  const h1 = wrap.offsetHeight, delta = top0 - months.getBoundingClientRect().top;
+  const clip = (below) => `inset(-30px -30px ${below}px -30px)`;   // the negative insets leave the streak's glints unclipped
+  if (delta) months.animate([{ transform: `translateY(${delta}px)` }, { transform: "none" }], SWAP);
+  const pane = $(mode === "facts" ? ".pane-facts:not(.ghost)" : ".pane-tally:not(.ghost)", wrap);
+  if (h1 > h0) pane.animate([{ clipPath: clip(h1 - h0) }, { clipPath: clip(0) }], SWAP);
+  if (mode === "tally") pane.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: "ease-out" });   // the facts fade in row by row already
+  ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: "ease-out", fill: "forwards" });
+  if (h0 > h1) ghost.animate([{ clipPath: clip(0) }, { clipPath: clip(h0 - h1) }], { ...SWAP, fill: "forwards" });
+  Promise.all(ghost.getAnimations().map((an) => an.finished)).then(() => ghost.remove(), () => ghost.remove());
 }
 
 const shown = new WeakMap();

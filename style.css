@@ -172,14 +172,16 @@ html[data-theme="dark"] .mode .sun { opacity: 1; transform: none; }
 
 /* ---------- facts ---------- */
 
-.tally-wrap { margin-top: 20px; }
+.tally-wrap { position: relative; margin-top: 20px; }
 .facts { margin: 6px 0 0; padding: 0; }
-.pane { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .6s var(--ink-ease), opacity .45s var(--ink-ease); }
+/* one panel at a time; paintFacts() swaps them with transforms and clips, never by animating a height */
+.pane { display: grid; grid-template-rows: 1fr; }
 .pane-in { min-height: 0; overflow: hidden; padding: 14px 24px; margin: -14px -24px; }   /* the padding keeps the streak's glints from being clipped */
-.tally-wrap[data-mode="facts"] .pane-tally, .tally-wrap[data-mode="tally"] .pane-facts { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
+.tally-wrap[data-mode="facts"] > .pane-tally:not(.ghost), .tally-wrap[data-mode="tally"] > .pane-facts:not(.ghost) { display: none; }
+.pane.ghost { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
 .pane-facts .label { display: block; }
 .facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; padding: 10px 4px; border-bottom: 1px solid var(--hair); }
-.facts[data-anim] > div { animation: soak .7s var(--ink-ease) both; animation-delay: calc(var(--i, 0) * 60ms); }
+.facts[data-anim] > div { animation: soak .5s var(--ink-ease) both; animation-delay: calc(var(--i, 0) * 45ms); }
 .facts dt { color: var(--sumi-2); font-size: 14px; }
 .facts dd { margin: 0; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; min-width: 0; }
 .facts dd small { color: var(--sumi-3); font-size: 13px; }
@@ -205,8 +207,8 @@ html[data-theme="dark"] .mode .sun { opacity: 1; transform: none; }
 @keyframes stamp-in { from { opacity: 0; transform: scale(2.2) rotate(8deg); } to { opacity: 1; transform: scale(1) rotate(8deg); } }
 .cell.future .dn, .cell.future .ticks { opacity: .5; }
 .ticks { display: flex; align-items: flex-end; gap: 3px; height: 21px; }
-.ticks i { width: 3px; border-radius: 2px 2px 1px 1px; background: var(--c); height: var(--h);
-  transition: height .9s var(--ink-ease), background-color .9s var(--ink-ease), opacity .6s var(--ink-ease), width .6s var(--ink-ease); }
+.ticks i { width: 3px; border-radius: 2px 2px 1px 1px; background: var(--c); height: var(--h); transform-origin: 50% 100%;
+  transition: height .9s var(--ink-ease), background-color .9s var(--ink-ease), opacity .35s var(--ink-ease), transform .35s var(--ink-ease); }
 .ticks i[data-t="none"] { --c: var(--hair); --h: 3px; }
 .ticks i[data-t="part"] { --c: var(--stitch); --h: calc(8px + var(--j) * 1px); }
 .ticks i[data-t="low"] { --c: var(--low); --h: calc(6px + var(--j) * 1px); }
@@ -216,7 +218,7 @@ html[data-theme="dark"] .mode .sun { opacity: 1; transform: none; }
 .months[data-focus] .ticks i { opacity: .14; }
 .months[data-focus="data"] .ticks i[data-d="data"], .months[data-focus="gym"] .ticks i[data-d="gym"],
 .months[data-focus="jp"] .ticks i[data-d="jp"], .months[data-focus="piano"] .ticks i[data-d="piano"],
-.months[data-focus="sleep"] .ticks i[data-d="sleep"] { opacity: 1; width: 6px; }
+.months[data-focus="sleep"] .ticks i[data-d="sleep"] { opacity: 1; transform: scaleX(2); }
 
 /* ---------- right page: one day ---------- */
 .day-top { position: relative; z-index: 3; flex: none; display: flex; align-items: center; justify-content: space-between;

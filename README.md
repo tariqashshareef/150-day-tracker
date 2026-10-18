@@ -88,5 +88,28 @@ Install it from Windows with **Sideloadly**:
 5. A free Apple ID signs the app for **7 days**; repeat step 3 each week (install over the top, your data stays).
    A paid developer account ($99/year) lasts a year.
 
+### Updating from SideStore (one tap)
+
+Every build also publishes a SideStore source next to the `.ipa`, so SideStore can offer each new build as an update:
+
+```
+https://github.com/tariqashshareef/150-day-tracker/releases/download/ios-latest/source.json
+```
+
+Builds are numbered `1.0.<run number>`; SideStore offers an update when that number is higher than the installed app's.
+
+One time, on the phone:
+
+1. In the app: **backup > export**, to be safe.
+2. SideStore > **Sources** > **+**, paste the url above, add it. (Or open `sidestore://source?url=` followed by the url, in Safari.)
+3. Open the source, tap **150 days**, and install it once from there. It installs over the copy you already have (same bundle id,
+   your log stays). That install is what links the app to the source: an app added from a file with **+** is not linked, so it never
+   shows an update.
+
+Every update after that:
+
+1. Push to `ios-app` (`git push origin main:ios-app`) and wait for the build in the Actions tab to go green.
+2. SideStore > **My Apps**, pull down to refresh. **150 days** appears under updates, tap **UPDATE**.
+
 The app keeps its log in its own storage, separate from the home-screen web app: **backup > export** in the old one, then
 **backup > import** in the new one. To change the app, edit the files and push to `ios-app`; to see the web version, push `main`.

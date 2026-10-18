@@ -17,7 +17,6 @@ const params = new URLSearchParams(location.search);
 const SIM = /^\d{4}-\d{2}-\d{2}$/.test(params.get("today") || "") ? params.get("today") : null; // ?today=2026-11-12 pretends it is that day
 const KEY = "d150.v1" + (SIM ? ".sim" : "");
 const THEME_KEY = "d150.theme";
-const BUILD = "oct 16 21:02";   // shown in the backup sheet, so you can tell which version the phone is running
 
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -394,8 +393,8 @@ $("#months").addEventListener("click", (e) => {
 
 const fmtH = (x) => String(Math.round(x * 10) / 10);
 const compact = (n) => (n >= 10000 ? Math.round(n / 1000) + "k" : n >= 1000 ? String(Math.round(n / 100) / 10).replace(/\.0$/, "") + "k" : String(n));
-const pct = ([y, n]) => (n ? `${Math.round((100 * y) / n)}%` : "–");
-const tally = (arr, v) => { if (v === undefined || v === null) return; arr[1]++; if (v) arr[0]++; };
+const pctOf = (x, y) => Math.round((100 * x) / y);
+const LIFTS = ["push", "pull", "legs"];
 
 function words(text) { return (text || "").split(/[,;\n]+/).map((t) => t.trim().toLowerCase()).filter((t) => t && t.length <= 40); }
 function bump(map, text) { for (const w of words(text)) map.set(w, (map.get(w) || 0) + 1); }
@@ -404,11 +403,10 @@ const mostUsed = (map, n) => [...map].sort((a, b) => b[1] - a[1]).slice(0, n).ma
 function aggregate() {
   const tn = dayNo(today), last = clamp(tn, 0, TOTAL);
   const a = {
-    tn, last, days: 0, gymDone: 0, complete: 0, perfect: 0, part: 0, none: 0, upcoming: 0,
-    hours: 0, hoursDays: 0, bestHours: 0,
-    gym: { push: 0, pull: 0, legs: 0, rest: 0 }, diet: [0, 0], supps: [0, 0],
-    anki: 0, ankiDays: 0, bestAnki: 0, lesson: [0, 0], io: [0, 0],
-    piano: [0, 0], sleep: [0, 0], topics: new Map(), pieces: new Map(), streak: 0,
+    tn, last, span: { hours: 0, anki: 0, diet: 0, supps: 0, lesson: 0, io: 0, piano: 0, sleep: 0 }, complete: 0, perfect: 0, part: 0, none: 0, upcoming: 0,
+    hours: 0, hoursDays: 0,
+    lift: [0, 0, 0], liftPlan: 0, diet: 0, supps: 0,
+    anki: 0, ankiDays: 0, lesson: 0, io: 0, piano: 0, sleep: 0, streak: 0,
   };
   const perfectAt = [];
   // a part with nothing in it, or answered with nothing done, is empty
@@ -417,22 +415,25 @@ function aggregate() {
     const date = dateOf(n), e = db.entries[date], E = e || {};
     if (n > last && !(TEST_ANY_DAY && e)) { a.upcoming++; continue; }   // test mode: days logged ahead of time still count
     const st = statusOf(date);
+    // each percentage is out of the days that are over, plus today once that question has an answer (today doesn't count against you while it is still going)
+    for (const k in a.span) if (n < tn || has(E, k)) a.span[k]++;
+    if ((n < tn || has(E, "gym")) && (n - 1) % 4 < 3) a.liftPlan++;   // the plan: push, pull, legs+abs, rest, then again, from day 1
     // whole days: perfect is all five parts fully green; none is a day with nothing in it; partial is everything in between
-    a.days++;
-    if (st.per[1].tone === "high") a.gymDone++;   // gym fully done: session, diet and supplements
     const perfect = st.per.every((p) => p.tone === "high");
     perfectAt[n] = perfect;
     if (st.complete) a.complete++;
     if (perfect) a.perfect++;
     else if (st.per.every(empty)) { if (st.touched || n < tn) a.none++; else a.upcoming++; }
     else a.part++;
-    if (has(E, "hours")) { a.hours += E.hours; if (E.hours > 0) a.hoursDays++; a.bestHours = Math.max(a.bestHours, E.hours); }
-    if (E.gym) a.gym[E.gym]++;
-    tally(a.diet, E.diet); tally(a.supps, E.supps);
-    if (has(E, "anki")) { a.anki += E.anki; if (E.anki > 0) a.ankiDays++; a.bestAnki = Math.max(a.bestAnki, E.anki); }
-    tally(a.lesson, E.lesson); tally(a.io, E.io);
-    tally(a.piano, E.piano); tally(a.sleep, E.sleep);
-    bump(a.topics, E.topics); bump(a.pieces, E.pianoNote);
+    if (has(E, "hours")) { a.hours += E.hours; if (E.hours > 0) a.hoursDays++; }
+    if (LIFTS.includes(E.gym)) a.lift[LIFTS.indexOf(E.gym)]++;
+    if (E.diet) a.diet++;
+    if (E.supps) a.supps++;
+    if (has(E, "anki")) { a.anki += E.anki; if (E.anki > 0) a.ankiDays++; }
+    if (E.lesson) a.lesson++;
+    if (E.io) a.io++;
+    if (E.piano) a.piano++;
+    if (E.sleep) a.sleep++;
   }
   // the streak is the run of perfect days that reaches the current day (today may still be in progress)
   let i = clamp(tn, 1, TOTAL);
@@ -442,43 +443,39 @@ function aggregate() {
 }
 
 function factRows(a, focus) {
-  const days = (n) => `${n} <small>${n === 1 ? "day" : "days"}</small>`;
-  const note = (arr) => `${pct(arr)} <small>${arr[1] ? `· ${arr[0]} of ${arr[1]}` : ""}</small>`;
-  // the second row on every page: how many days, as a share of the days so far
-  const share = (label, x, unit) => [label, a.days ? `${Math.round((100 * x) / a.days)}% <small>of ${unit} · ${x} of ${a.days}</small>` : "–"];
+  const S = a.span;   // per question: the days so far that its percentage is out of
+  const one = (n, word) => (n === 1 ? word : word + "s");
+  const amt = (text, v, word) => `${text} <small>${one(v, word)}</small>`;
+  // "A/B (X%) days": how many of the days so far
+  const ratio = (x, y, unit) => (y ? `${x}/${y} <small>(${pctOf(x, y)}%) ${y === 1 ? unit.slice(0, -1) : unit}</small>` : "–");
+  // "N% (X/Y)": how often, out of the days so far
+  const rate = (x, y) => (y ? `${pctOf(x, y)}% <small>(${x}/${y})</small>` : "–");
+  const avgH = a.hoursDays ? Math.round((a.hours / a.hoursDays) * 10) / 10 : 0;
+  const avgW = a.ankiDays ? Math.round(a.anki / a.ankiDays) : 0;
   switch (focus) {
     case "data": return [
-      ["total hours worked", `${fmtH(a.hours)} <small>hours</small>`],
-      share("days worked", a.hoursDays, "days"),
-      ["average, on days worked", a.hoursDays ? `${fmtH(a.hours / a.hoursDays)} <small>hours</small>` : "–"],
-      ["longest day", a.bestHours ? `${fmtH(a.bestHours)} <small>hours</small>` : "–"],
+      ["days worked", ratio(a.hoursDays, S.hours, "days")],
+      ["total hours worked", amt(fmtH(a.hours), Math.round(a.hours * 10) / 10, "hour")],
+      ["average, on days worked", a.hoursDays ? amt(fmtH(avgH), avgH, "hour") : "–"],
     ];
-    case "gym": {
-      const g = a.gym, lifts = g.push + g.pull + g.legs;
-      return [
-        ["lift days", days(lifts)],
-        share("days completed", a.gymDone, "days"),
-        ["p · p · l+a", `${g.push} · ${g.pull} · ${g.legs}`],
-        ["rest days", days(g.rest)],
-        ["diet adherence", note(a.diet)],
-        ["supplement adherence", note(a.supps)],
-      ];
-    }
+    case "gym": return [
+      ["lift days", ratio(a.lift[0] + a.lift[1] + a.lift[2], a.liftPlan, "days")],
+      ["p · p · l+a", a.lift.join(" · ")],
+      ["diet adherence", rate(a.diet, S.diet)],
+      ["supplement adherence", rate(a.supps, S.supps)],
+    ];
     case "jp": return [
-      ["vocab studied", `${a.anki.toLocaleString("en-US")} <small>words</small>`],
-      share("days studied", a.ankiDays, "days"),
-      ["average, on days studied", a.ankiDays ? `${Math.round(a.anki / a.ankiDays)} <small>words</small>` : "–"],
-      ["most studied in a day", a.bestAnki ? `${a.bestAnki} <small>words</small>` : "–"],
-      ["lessons", `${pct(a.lesson)} <small>of days</small>`],
-      ["input/output", `${pct(a.io)} <small>of days</small>`],
+      ["days studied", ratio(a.ankiDays, S.anki, "days")],
+      ["vocab studied", amt(a.anki.toLocaleString("en-US"), a.anki, "word")],
+      ["average, on days studied", a.ankiDays ? amt(String(avgW), avgW, "word") : "–"],
+      ["lessons", rate(a.lesson, S.lesson)],
+      ["input/output", rate(a.io, S.io)],
     ];
     case "piano": return [
-      ["days practiced", days(a.piano[0])],
-      share("practiced", a.piano[0], "days"),
+      ["days practiced", ratio(a.piano, S.piano, "days")],
     ];
     case "sleep": return [
-      ["nights on time", `${a.sleep[0]} <small>${a.sleep[0] === 1 ? "night" : "nights"}</small>`],
-      share("on time", a.sleep[0], "nights"),
+      ["nights on time", ratio(a.sleep, S.sleep, "nights")],
     ];
     default: return [];
   }
@@ -943,8 +940,16 @@ function openDayPage() {
   document.body.classList.add("has-day");
   cue("swish");
 }
+/* leaving the day page takes the keyboard with it (the page slides away but the box under your finger keeps focus otherwise) */
+function dropKeyboard() {
+  const el = document.activeElement;
+  if (el && el.matches && el.matches("input, textarea")) el.blur();
+  const K = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Keyboard;
+  try { if (K && K.hide) Promise.resolve(K.hide()).catch(() => {}); } catch (err) { /* the blur above is enough in a browser */ }
+}
 function closeDayPage() {
   if (wide() || !document.body.classList.contains("has-day")) return;
+  dropKeyboard();
   document.body.classList.remove("has-day");
   cue("swish");
 }
@@ -964,6 +969,7 @@ edge.addEventListener("pointermove", (e) => {
   drag.v = (e.clientX - drag.last) / Math.max(1, now - drag.lastT);   // px per ms, for flicks
   drag.last = e.clientX; drag.lastT = now;
   drag.dx = Math.max(0, e.clientX - drag.x);
+  if (drag.dx > 12 && !drag.kb) { drag.kb = true; dropKeyboard(); }     // the keyboard goes as soon as the page starts to move
   $("#day").style.transform = `translateX(${drag.dx}px)`;               // the page follows your finger
 });
 function endDrag() {
@@ -972,7 +978,7 @@ function endDrag() {
   drag = null;
   page.style.transition = "transform .38s cubic-bezier(.22, .61, .2, 1)";
   page.style.transform = go ? "translateX(105%)" : "translateX(0)";
-  if (go) cue("swish");
+  if (go) { dropKeyboard(); cue("swish"); }
   setTimeout(() => {
     if (go) document.body.classList.remove("has-day");
     page.style.transition = ""; page.style.transform = "";
@@ -1022,21 +1028,7 @@ function backupInfo() {
   const n = Object.keys(db.entries).length;
   $("#backupInfo").textContent = `${n} ${n === 1 ? "day" : "days"} logged · last export ${db.exported ? shortDate(ymd(new Date(db.exported))) : "never"}`;
 }
-const inset = (side) => {
-  const p = document.createElement("div");
-  p.style.cssText = `position:fixed;visibility:hidden;padding-${side}:env(safe-area-inset-${side},0px)`;
-  document.body.append(p);
-  const v = parseFloat(getComputedStyle(p)[`padding${side[0].toUpperCase()}${side.slice(1)}`]) || 0;
-  p.remove();
-  return v;
-};
-function showBuild() {
-  const vv = window.visualViewport, page = $(".spread").getBoundingClientRect(), scroller = $("#leftScroll").getBoundingClientRect();
-  $("#buildInfo").textContent = `build ${BUILD} · ${document.documentElement.classList.contains("standalone") ? "installed" : "in browser"} · window ${innerWidth}×${innerHeight}` +
-    `${vv ? ` · visual ${Math.round(vv.height)}` : ""} · screen ${screen.width}×${screen.height} · insets ${inset("top")}/${inset("bottom")} · ` +
-    `app ${getComputedStyle(document.documentElement).getPropertyValue("--app-h").trim()} · page ends ${Math.round(page.bottom)} · list ends ${Math.round(scroller.bottom)}`;
-}
-function openBackup() { cue("swish"); backupInfo(); showBuild(); $("#backupMsg").textContent = ""; $("#backupSheet").hidden = false; }
+function openBackup() { cue("swish"); backupInfo(); $("#backupMsg").textContent = ""; $("#backupSheet").hidden = false; }
 function closeBackup() {
   const sheet = $("#backupSheet");
   if (sheet.hidden) return;

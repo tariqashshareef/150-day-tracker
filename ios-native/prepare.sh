@@ -13,6 +13,12 @@ pb "Delete :UISupportedInterfaceOrientations"
 pb "Add :UISupportedInterfaceOrientations array"
 pb "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait"
 
+# the app's Documents folder shows in Files > On My iPhone > 150 days: the log copies itself there after every change
+pb "Delete :UIFileSharingEnabled"
+pb "Add :UIFileSharingEnabled bool true"
+pb "Delete :LSSupportsOpeningDocumentsInPlace"
+pb "Add :LSSupportsOpeningDocumentsInPlace bool true"
+
 # a solid launch screen in the paper colour (cream by day, near-black by night) instead of the white storyboard
 pb "Delete :UILaunchStoryboardName"
 pb "Delete :UILaunchScreen"

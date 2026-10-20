@@ -139,7 +139,9 @@ let db = loadDb();
 let saveTimer = 0, dirty = false;
 
 function persist() {
-  try { localStorage.setItem(KEY, JSON.stringify(db)); return true; } catch (e) { return false; }
+  try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { return false; }
+  queueCopy();
+  return true;
 }
 function setStatus(level, text) {
   const s = $("#saveStatus");
@@ -159,7 +161,54 @@ function queueSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flush, 350);
 }
-addEventListener("pagehide", flush);
+addEventListener("pagehide", () => { flush(); writeCopy(); });
+
+/* the native app also keeps a copy of the log as a plain file in its Documents folder after every change. with file sharing on
+   (ios-native/prepare.sh) that folder shows in Files > On My iPhone > 150 days. it covers the web storage being cleared, it is
+   a file you can copy anywhere, and history/ keeps one file per day. it goes when the app is deleted, so exports still matter. */
+const nativeFS = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+const COPY_FILE = "150-days-latest.json";
+let copyReady = false, copyTimer = 0, copyAt = null, copyFailed = false;
+async function writeCopy() {
+  clearTimeout(copyTimer);
+  const fs = nativeFS();
+  if (!fs || !copyReady || !Object.keys(db.entries).length) return;   // never replace the copy with an empty log
+  const data = JSON.stringify(db, null, 1);
+  try {
+    await fs.writeFile({ path: COPY_FILE, data, directory: "DOCUMENTS", encoding: "utf8" });
+    await fs.writeFile({ path: `history/150-days-${today}.json`, data, directory: "DOCUMENTS", encoding: "utf8", recursive: true });
+    copyAt = new Date(); copyFailed = false;
+  } catch (err) { copyFailed = true; }
+  paintCopyInfo();
+}
+function queueCopy() {
+  if (!nativeFS()) return;
+  clearTimeout(copyTimer);
+  copyTimer = setTimeout(writeCopy, 1200);
+}
+/* on launch: if the web storage came up empty but a copy is there, take it back */
+async function restoreCopy() {
+  const fs = nativeFS();
+  if (fs && !Object.keys(db.entries).length) {
+    try {
+      const r = await fs.readFile({ path: COPY_FILE, directory: "DOCUMENTS", encoding: "utf8" });
+      const o = JSON.parse(r.data);
+      if (!Object.keys(db.entries).length && o && typeof o.entries === "object" && o.entries && adoptEntries(o)) {
+        if (typeof o.exported === "string") db.exported = o.exported;
+        persist(); paintAllCells(); paintSummary(); paintDay(); setStatus("ok", "restored");
+      }
+    } catch (err) { /* no copy yet, which is normal on a first launch */ }
+  }
+  copyReady = true;
+  queueCopy();
+}
+function paintCopyInfo() {
+  const el = $("#copyInfo");
+  if (!el) return;
+  const t = copyAt ? copyAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase() : "";
+  el.textContent = copyFailed ? "couldn't save the copy on this phone."
+    : `a copy saves itself after every change${t ? `, last at ${t}` : ""}. find it in Files > On My iPhone > 150 days.`;
+}
 
 /* ----------------------------------------------------------------- state */
 
@@ -1050,7 +1099,7 @@ function goToLogDay() {
   if (!wide()) document.body.classList.add("has-day");
 }
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { hiddenAt = Date.now(); flush(); return; }
+  if (document.hidden) { hiddenAt = Date.now(); flush(); writeCopy(); return; }
   refreshToday();
   if (hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000) { closeBackup(); goToLogDay(); }
 });
@@ -1063,7 +1112,7 @@ function backupInfo() {
   const n = Object.keys(db.entries).length;
   $("#backupInfo").textContent = `${n} ${n === 1 ? "day" : "days"} logged · last export ${db.exported ? shortDate(ymd(new Date(db.exported))) : "never"}`;
 }
-function openBackup() { cue("swish"); backupInfo(); $("#backupMsg").textContent = ""; $("#backupSheet").hidden = false; }
+function openBackup() { cue("swish"); backupInfo(); paintCopyInfo(); $("#backupMsg").textContent = ""; $("#backupSheet").hidden = false; }
 function closeBackup() {
   const sheet = $("#backupSheet");
   if (sheet.hidden) return;
@@ -1110,6 +1159,18 @@ function clean(e) {
   for (const k of ["topics", "pianoNote", "jpNote"]) if (typeof e[k] === "string" && e[k].trim()) out[k] = e[k].slice(0, 2000);
   return out;
 }
+/* takes the days of a backup into the log: only real dates inside the 150 days, none that haven't come yet, only fields this app writes */
+function adoptEntries(o) {
+  let n = 0;
+  for (const [date, e] of Object.entries(o.entries)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const num = dayNo(date);
+    if (num < 1 || num > TOTAL || date > today || !e || typeof e !== "object") continue;   // days that haven't come yet can't be restored
+    const c = clean(e);
+    if (Object.keys(c).length) { db.entries[date] = c; n++; }
+  }
+  return n;
+}
 $("#importFile").addEventListener("change", async (ev) => {
   const file = ev.target.files[0], msg = $("#backupMsg");
   ev.target.value = "";
@@ -1117,14 +1178,7 @@ $("#importFile").addEventListener("change", async (ev) => {
   try {
     const o = JSON.parse(await file.text());
     if (!o || typeof o.entries !== "object" || !o.entries) throw new Error("not a backup");
-    let n = 0;
-    for (const [date, e] of Object.entries(o.entries)) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-      const num = dayNo(date);
-      if (num < 1 || num > TOTAL || date > today || !e || typeof e !== "object") continue;   // days that haven't come yet can't be restored
-      const c = clean(e);
-      if (Object.keys(c).length) { db.entries[date] = c; n++; }
-    }
+    const n = adoptEntries(o);
     persist(); paintAllCells(); paintSummary(); paintDay(); backupInfo();
     msg.textContent = `restored ${n} ${n === 1 ? "day" : "days"}.`;
   } catch (err) {
@@ -1170,6 +1224,7 @@ function boot() {
   const fonts = document.fonts && document.fonts.load
     ? Promise.all([document.fonts.load('500 16px "Shippori Mincho"'), document.fonts.load('600 16px "Shippori Mincho"')]) : Promise.resolve();
   Promise.race([fonts, new Promise((r) => setTimeout(r, 1500))]).then(reveal, reveal);
+  restoreCopy();
 }
 boot();
 

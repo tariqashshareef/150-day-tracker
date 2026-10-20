@@ -53,6 +53,11 @@ The log lives on the phone only. **backup** (top right of the days page) exports
 (save it to Files, AirDrop it, email it). **import** restores it; days in the file replace the same days in the app.
 A small red mark appears on the button when you have 5+ days logged and no export in the last 14 days.
 
+In the native app a copy also saves itself after every change: `150-days-latest.json`, plus one file per day in `history/`, in the
+app's Documents folder, which shows in the Files app under On My iPhone > 150 days. If the app's web storage is ever cleared, the
+app takes the copy back on launch (only when the log is empty, and an empty log never overwrites the copy). The copy goes when
+the app is deleted or the phone is lost, so exports (ideally to iCloud Drive) still matter.
+
 ## Develop
 
 ```

@@ -118,6 +118,14 @@ function migrate(o) {
     if (!("io" in e) && (typeof e.input === "boolean" || typeof e.output === "boolean")) e.io = !!(e.input || e.output);
     delete e.input; delete e.output;
   }
+  // v2, the day test mode went away: the first launch clears every day logged ahead of its time. only test mode allowed that,
+  // so real days are never touched (they are all today or earlier), and it runs once.
+  if (!(o.v >= 2)) {
+    let dropped = 0;
+    for (const date of Object.keys(o.entries)) if (date > today) { delete o.entries[date]; dropped++; }
+    if (dropped) o.exported = null;
+    o.v = 2;
+  }
   return o;
 }
 function loadDb() {
@@ -125,7 +133,7 @@ function loadDb() {
     const raw = localStorage.getItem(KEY);
     if (raw) { const o = JSON.parse(raw); if (o && typeof o.entries === "object" && o.entries) return migrate(o); }
   } catch (e) { /* unreadable: start clean */ }
-  return { v: 1, entries: {}, exported: null };
+  return { v: 2, entries: {}, exported: null };
 }
 let db = loadDb();
 let saveTimer = 0, dirty = false;
@@ -161,9 +169,7 @@ const fieldEls = new Map();  // key -> field element in the form
 let secEls = [];
 
 const wide = () => matchMedia("(min-width: 1121px)").matches;
-// TEST ONLY: lets every day be logged, future ones included. remove when asked (set to false, or delete the flag).
-const TEST_ANY_DAY = true;
-const editable = (date) => TEST_ANY_DAY || date <= today;
+const editable = (date) => date <= today;   // days that haven't come yet are locked
 
 /* the page never zooms: not by pinching, not by double-tapping, not for any input */
 ["gesturestart", "gesturechange", "gestureend"].forEach((t) => document.addEventListener(t, (e) => e.preventDefault(), { passive: false }));
@@ -413,7 +419,7 @@ function aggregate() {
   const empty = (p) => p.tone === "none" || p.tone === "low";
   for (let n = 1; n <= TOTAL; n++) {
     const date = dateOf(n), e = db.entries[date], E = e || {};
-    if (n > last && !(TEST_ANY_DAY && e)) { a.upcoming++; continue; }   // test mode: days logged ahead of time still count
+    if (n > last) { a.upcoming++; continue; }
     const st = statusOf(date);
     // each percentage is out of the days that are over, plus today once that question has an answer (today doesn't count against you while it is still going)
     for (const k in a.span) if (n < tn || has(E, k)) a.span[k]++;
@@ -844,7 +850,7 @@ function paintFields() {
   const locked = !editable(state.sel);
   $("#form").toggleAttribute("data-locked", locked);
   $$("input, textarea, button", $("#form")).forEach((x) => { x.disabled = locked; });
-  $("#dayNote").textContent = TEST_ANY_DAY && state.sel > today ? "test mode: any day can be logged." : locked ? "this day hasn't come yet." : "";
+  $("#dayNote").textContent = locked ? "this day hasn't come yet." : "";
 }
 
 function parseNum(raw, f) {
@@ -1115,7 +1121,7 @@ $("#importFile").addEventListener("change", async (ev) => {
     for (const [date, e] of Object.entries(o.entries)) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
       const num = dayNo(date);
-      if (num < 1 || num > TOTAL || !e || typeof e !== "object") continue;
+      if (num < 1 || num > TOTAL || date > today || !e || typeof e !== "object") continue;   // days that haven't come yet can't be restored
       const c = clean(e);
       if (Object.keys(c).length) { db.entries[date] = c; n++; }
     }

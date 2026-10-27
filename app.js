@@ -241,16 +241,41 @@ document.addEventListener("touchend", (e) => {
 
 // everything is synthesized, so there are no audio files. the speaker button in the header turns sound and touch off together.
 const FEEL_KEY = "d150.feel";
-const feel = { on: true, ctx: null, buf: null, label: null };
+const feel = { on: true, ctx: null, buf: null, label: null, until: 0, madeAt: 0, stale: false, tries: 0, gesture: false };
 try { feel.on = localStorage.getItem(FEEL_KEY) !== "off"; } catch (e) { /* default on */ }
 
-function ac() {
-  if (!feel.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; feel.ctx = new C(); }
-  if (feel.ctx.state !== "running") feel.ctx.resume().catch(() => {});
+/* the audio context heals itself. on iOS a context can stay silent after the ring/silent switch or the volume changed, or after
+   the app was in the background, and only a fresh one brings the sound back (which is why reopening the app fixed it). a new
+   context can only start from a tap, so it is swapped in on the first tap after it went stale, sat idle for a while, or would
+   not resume. the old one is closed a little later so a sound still ringing out isn't cut off. */
+["pointerdown", "touchstart", "touchend", "click", "keydown"].forEach((t) =>
+  addEventListener(t, () => { feel.gesture = true; setTimeout(() => { feel.gesture = false; }, 0); }, true));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) feel.stale = true; });
+addEventListener("pageshow", () => { feel.stale = true; });
+function newCtx() {
+  const C = window.AudioContext || window.webkitAudioContext;
+  if (!C) return null;
+  const old = feel.ctx;
+  feel.ctx = new C();
+  feel.buf = null; feel.stale = false; feel.tries = 0; feel.madeAt = performance.now();
+  if (old) setTimeout(() => { try { Promise.resolve(old.close()).catch(() => {}); } catch (e) { /* already closed */ } }, 2500);
   return feel.ctx;
 }
+function ac(span = 0.2) {   // span: how many seconds the sound about to be made will last
+  const now = performance.now();
+  let c = feel.ctx;
+  if (!c || c.state === "closed") c = newCtx();
+  else if (feel.gesture && now - feel.madeAt > 300) {
+    const idle = now > feel.until + 1200;
+    if (feel.stale || idle || (c.state !== "running" && feel.tries >= 1)) c = newCtx();
+  }
+  if (!c) return null;
+  if (c.state !== "running") { feel.tries++; c.resume().catch(() => { feel.stale = true; }); } else feel.tries = 0;
+  feel.until = Math.max(feel.until, now + span * 1000);
+  return c;
+}
 function blip(f0, f1, d, { type = "sine", gain = 0.12, at = 0 } = {}) {
-  const c = feel.on && ac();
+  const c = feel.on && ac(at + d + 0.03);
   if (!c) return;
   const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
   o.type = type;
@@ -263,7 +288,7 @@ function blip(f0, f1, d, { type = "sine", gain = 0.12, at = 0 } = {}) {
   o.start(t); o.stop(t + d + 0.03);
 }
 function hiss(d, f0, f1, { gain = 0.05, at = 0 } = {}) {
-  const c = feel.on && ac();
+  const c = feel.on && ac(at + d + 0.03);
   if (!c) return;
   if (!feel.buf) {
     feel.buf = c.createBuffer(1, c.sampleRate, c.sampleRate);
@@ -281,7 +306,7 @@ function hiss(d, f0, f1, { gain = 0.05, at = 0 } = {}) {
 }
 // a wooden tok, like a temple block: a round sine body with a faint downward chirp, a woody overtone and a tiny click, softened by a low-pass
 function wood(f, d = 0.14, gain = 0.1, at = 0) {
-  const c = feel.on && ac();
+  const c = feel.on && ac(at + d + 0.03);
   if (!c) return;
   const t = c.currentTime + at, out = c.createGain(), lp = c.createBiquadFilter();
   lp.type = "lowpass"; lp.frequency.value = 3000; lp.Q.value = 0.5;
